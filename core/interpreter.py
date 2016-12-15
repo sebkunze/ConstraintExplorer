@@ -9,8 +9,6 @@ class Program:
     def __repr__(self): # TODO: Insert new line operator!
         return "program variant with terminating states: " + str(self.terminated_states)
 
-    # TODO: Check whether we can iterate once only!
-
     def add_terminated_state(self, terminated_state):
         self.terminated_states.append(terminated_state)
 
@@ -52,36 +50,29 @@ def translate_to_program(terminated_symbooglix_states):
             # TODO: Find more elegant solution!
             d = c['origin'][:-1].split()
             d = d[3:]
-            if isConjoinedConstraint(d): # TODO: Work on disjointConstraints!
-                e = []
-                while True:
-                    var = d[0]
-                    op  = d[1]
-                    val = d[2]
-                    y = genConstraint(var, op, val)
 
-                    e.append(y)
-
-                    d = d[4:]  # TODO: Find a more appropiate name!
-                    if not len(d) > 0:  # do-while condition
-                        break
-
-                j = None
-                for f in e:
-                    if j is None:
-                        j = f
-                    else:
-                        j = And(j, f)
-
-                constraints.append(j)
-            else:
+            e = []
+            while True:             # do-while body
                 var = d[0]
-                op  = d[1]
+                op = d[1]
                 val = d[2]
+
                 y = genConstraint(var, op, val)
 
-                constraints.append(y)
+                e.append(y)
 
+                d = d[4:]  # TODO: Find a more appropiate name!
+                if not len(d) > 0:  # do-while condition
+                    break;
+
+            j = None
+            for f in e:
+                if j is None:
+                    j = f
+                else:
+                    j = And(j, f)
+
+            constraints.append(j)
         t = TerminatedState(id, constraints)
         p.add_terminated_state(t)
     return p
@@ -98,7 +89,3 @@ def genConstraint(var, op, val):
             return Not(Int(var) == val)
         else:
             return Not(Int(var) == Int(val))
-
-def isConjoinedConstraint(constraint):
-    return len(constraint) > 3 # TODO: Check for keyword as well
-

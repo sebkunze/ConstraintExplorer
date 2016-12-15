@@ -1,10 +1,10 @@
 from yaml import load_all
         
-def readTerminatedStates(path):
+def read_terminated_symbooglix_states(path):
     stream = file(path,'r')
-    termiatedStates = load_all(stream)
+    termiated_symbooglix_states = load_all(stream)
     file.close
-    return termiatedStates
+    return termiated_symbooglix_states
 
 class ConstraintsIterator: # TODO: Rename!
     def __init__(self, terminated_symbooglix_state):

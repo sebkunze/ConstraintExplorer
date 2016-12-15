@@ -30,13 +30,13 @@ paths = ['sample/basic-001/Symbooglix.TerminatedWithoutError.yml'
 # Interpreting specified program variants.
 programs = []
 for path in paths:
-    states  = symbooglix.readTerminatedStates(path)
+    states  = symbooglix.read_terminated_symbooglix_states(path)
     program = interpreter.translate_to_program(states)
     programs.append(program)
 
 # Feeding interpreted program variants to z3
 statesX = programs[4].terminated_states
-statesY = programs[3].terminated_states
+statesY = programs[1].terminated_states
 
 equivalentStates  = []
 newStates         = range(len(statesY))
