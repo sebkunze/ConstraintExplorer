@@ -1,4 +1,4 @@
-from z3         import *    # TODO: Fix import statements!
+from z3         import Int, And, Not
 from symbooglix import ConstraintsIterator
 
 
@@ -57,11 +57,11 @@ def translate_to_program(terminated_symbooglix_states):
                 op = d[1]
                 val = d[2]
 
-                y = genConstraint(var, op, val)
+                y = gen_constraint(var, op, val)
 
                 e.append(y)
 
-                d = d[4:]  # TODO: Find a more appropiate name!
+                d = d[4:]  # TODO: Find a more appropriate name!
                 if not len(d) > 0:  # do-while condition
                     break;
 
@@ -77,8 +77,7 @@ def translate_to_program(terminated_symbooglix_states):
         p.add_terminated_state(t)
     return p
 
-def genConstraint(var, op, val):
-    c = Constraint
+def gen_constraint(var, op, val):
     if op == '==': # Do not use 'is' in favour of '=='
         if val.isdigit():
             return Int(var) == val

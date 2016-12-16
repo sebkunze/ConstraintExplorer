@@ -17,8 +17,7 @@ class TerminatedSymbooglixState:
                        
 from core         import symbooglix
 from core         import interpreter
-from core.variant import * # TODO: Fix naming, e.g., productline.variant!
-from z3           import * # TODO: Fix dependencies!
+from core         import analyser
 
 # Specifying program variants.
 paths = ['sample/basic-001/Symbooglix.TerminatedWithoutError.yml'
@@ -46,7 +45,7 @@ print "Assuming number of covered states: " + str(len(statesX))
 print "Number of states to be covered: " + str(len(statesY))
 
 for stateY in statesY:
-    equivalentToStatesInX = generateListOfEquivalentStates(stateY, statesX)
+    equivalentToStatesInX = analyser.generate_list_of_equivalent_states(stateY, statesX)
     pos = [equivalentToStatesInX.index(y) for y in equivalentToStatesInX if y]
     if pos:
         equivalentStates.append((stateY.id, pos[0]))
@@ -54,7 +53,7 @@ for stateY in statesY:
 print "equivalent states; test cases to be skipped:\t" + str(equivalentStates)
 
 for stateY in statesY:
-    overlappingWithStateInX = generateListOfOverlappingStates(stateY, statesX)
+    overlappingWithStateInX = analyser.generate_list_of_overlapping_states(stateY, statesX)
     pos = [overlappingWithStateInX.index(y) for y in overlappingWithStateInX if y]
     if pos:
         overlappingStates.append((stateY.id, pos[0]))

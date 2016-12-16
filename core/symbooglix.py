@@ -6,7 +6,7 @@ def read_terminated_symbooglix_states(path):
     file.close
     return termiated_symbooglix_states
 
-class ConstraintsIterator: # TODO: Rename!
+class ConstraintsIterator:
     def __init__(self, terminated_symbooglix_state):
         self.constraints = terminated_symbooglix_state.constraints['constraints']
 
