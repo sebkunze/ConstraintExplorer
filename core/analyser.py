@@ -1,4 +1,4 @@
-from z3          import Solver, sat, unsat
+from z3          import Solver, sat
 
 def check_overlapping_states(variantX, variantY):
     statesInVariantX = len(variantX.terminatedStates)
