@@ -1,21 +1,3 @@
-# TODO: Move this somehow without destroying dependencies!
-class TerminatedSymbooglixState:
-    def __init__(self, state_id, memory, constraints):
-        self.state_id    = state_id
-        self.memory      = memory       # TODO: Figure out of memory is required!
-        self.constraints = constraints
-
-    # TODO: Figure out if the following code is necessary!
-    def get_state_id(self):
-        return self.state_id
-
-    def get_memory(self):
-        return self.memory
-
-    def get_constraints(self):
-        return self.constraints
-
-
 import os, sys
 from core     import symbooglix
 from core     import interpreter

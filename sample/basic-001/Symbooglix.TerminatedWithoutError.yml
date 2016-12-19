@@ -1,5 +1,5 @@
 ---
-!!python/object:__main__.TerminatedSymbooglixState
+!!python/object:core.symbooglix.TerminatedSymbooglixState
 state_id: 0
 status:
  message: "Terminated without error at Basic.bpl:107 return;"
@@ -68,7 +68,7 @@ constraints:
    num_used_variables: 3
    num_used_uf: 0
 ---
-!!python/object:__main__.TerminatedSymbooglixState
+!!python/object:core.symbooglix.TerminatedSymbooglixState
 # vim: set sw=1 ts=1 softtabstop=1:
 state_id: 1
 status:
@@ -140,7 +140,7 @@ constraints:
    num_used_variables: 3
    num_used_uf: 0
 ---
-!!python/object:__main__.TerminatedSymbooglixState
+!!python/object:core.symbooglix.TerminatedSymbooglixState
 # vim: set sw=1 ts=1 softtabstop=1:
 state_id: 2
 status:
@@ -207,7 +207,7 @@ constraints:
    num_used_variables: 3
    num_used_uf: 0
 ---
-!!python/object:__main__.TerminatedSymbooglixState
+!!python/object:core.symbooglix.TerminatedSymbooglixState
 # vim: set sw=1 ts=1 softtabstop=1:
 state_id: 3
 status:
@@ -284,7 +284,7 @@ constraints:
    num_used_variables: 3
    num_used_uf: 0
 ---
-!!python/object:__main__.TerminatedSymbooglixState
+!!python/object:core.symbooglix.TerminatedSymbooglixState
 # vim: set sw=1 ts=1 softtabstop=1:
 state_id: 4
 status:
@@ -361,7 +361,7 @@ constraints:
    num_used_variables: 3
    num_used_uf: 0
 ---
-!!python/object:__main__.TerminatedSymbooglixState
+!!python/object:core.symbooglix.TerminatedSymbooglixState
 # vim: set sw=1 ts=1 softtabstop=1:
 state_id: 5
 status:
@@ -428,7 +428,7 @@ constraints:
    num_used_variables: 3
    num_used_uf: 0
 ---
-!!python/object:__main__.TerminatedSymbooglixState
+!!python/object:core.symbooglix.TerminatedSymbooglixState
 # vim: set sw=1 ts=1 softtabstop=1:
 state_id: 6
 status:
@@ -505,7 +505,7 @@ constraints:
    num_used_variables: 3
    num_used_uf: 0
 ---
-!!python/object:__main__.TerminatedSymbooglixState
+!!python/object:core.symbooglix.TerminatedSymbooglixState
 # vim: set sw=1 ts=1 softtabstop=1:
 state_id: 7
 status:

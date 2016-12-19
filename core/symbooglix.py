@@ -1,5 +1,23 @@
 from yaml import load_all
-        
+
+
+class TerminatedSymbooglixState:
+    def __init__(self, state_id, memory, constraints):
+        self.state_id    = state_id
+        self.memory      = memory       # TODO: Figure out of memory is required!
+        self.constraints = constraints
+
+    # TODO: Figure out if the following code is necessary!
+    def get_state_id(self):
+        return self.state_id
+
+    def get_memory(self):
+        return self.memory
+
+    def get_constraints(self):
+        return self.constraints
+
+
 def read_terminated_symbooglix_states(path):
     stream = file(path,'r')
     termiated_symbooglix_states = load_all(stream)
