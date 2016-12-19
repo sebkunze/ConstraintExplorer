@@ -23,7 +23,7 @@ def main():
     # - provides any option,
     # - specifies two input files,
     # - and this input files are not empty.
-    if len(sys.argv) == 1 or len(options.inputs) < 2 or any ('' in s for s in options.inputs):
+    if len(sys.argv) == 1 or len(options.inputs) < 2 or any (not s for s in options.inputs):
         parser.parse_args(['--help'])
 
     # Fetching program variants.
