@@ -17,53 +17,28 @@ class TerminatedSymbooglixState:
 
 
 import os, sys
-from core         import symbooglix
-from core         import interpreter
-from core         import analyser
+from core     import symbooglix
+from core     import interpreter
+from core     import analyser
 from optparse import OptionParser
-from optparse import Option, OptionValueError
+from core     import console
+
+PROG = os.path.basename(os.path.splitext(__file__)[0])
 
 VERSION = '0.1'
 
-class MultipleOption(Option):
-
-    ACTIONS = Option.ACTIONS + ("extend",)
-    STORE_ACTIONS = Option.STORE_ACTIONS + ("extend",)
-    TYPED_ACTIONS = Option.TYPED_ACTIONS + ("extend",)
-    ALWAYS_TYPED_ACTIONS = Option.ALWAYS_TYPED_ACTIONS + ("extend",)
-
-    def take_action(self, action, dest, opt, value, values, parser):
-        if action == "extend":
-            lvalue = value.split(",")
-            values.ensure_value(dest, []).extend(lvalue)
-        else:
-            Option.take_action(
-                self, action, dest, opt, value, values, parser)
-
 def main():
-    PROG = os.path.basename(os.path.splitext(__file__)[0])
-    parser = OptionParser(option_class=MultipleOption,
-                          usage='usage: %prog [OPTIONS] COMMAND [BLOG_FILE]',
-                          version='%s %s' % (PROG, VERSION))
+    # Creating console interface.
+    parser = OptionParser(option_class = console.MultipleOption,
+                          usage        = 'usage: %prog [options] arg1 arg2',
+                          version      = '%s %s' % (PROG, VERSION))
+    console.populate_option_parser(parser)
 
-    parser.add_option("-i", "--input-files",
-                  action="extend", type="string",
-                  dest="inputs",
-                  metavar="FILE",
-                  help="specified input FILE(S)")
-    parser.add_option("-o", "--output_file", action="extend", dest="output",
-                  help="defined output to FILE", metavar="FILE")
-    parser.add_option("-q", "--quiet",
-                  action="store_false", dest="verbose", default=False,
-                  help="do print status messages to stdout")
-    parser.add_option("-v", "--verbose",
-                  action="store_true", dest="verbose",
-                  help="don't print status messages to stdout")
+    # Retrieving given options.
+    options, args = parser.parse_args()
 
-
-    options, args = parser.parse_args() # TODO: print version
-
-    if len(sys.argv) == 1:
+    # Asserting given options.
+    if len(sys.argv) == 1 or len(options.inputs) < 2:
         parser.parse_args(['--help'])
 
     # Fetching program variants.
