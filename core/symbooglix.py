@@ -7,24 +7,8 @@ class TerminatedSymbooglixState:
         self.memory      = memory       # TODO: Figure out of memory is required!
         self.constraints = constraints
 
-    # TODO: Figure out if the following code is necessary!
-    def get_state_id(self):
-        return self.state_id
 
-    def get_memory(self):
-        return self.memory
-
-    def get_constraints(self):
-        return self.constraints
-
-
-def read_terminated_symbooglix_states(path):
-    stream = file(path,'r')
-    termiated_symbooglix_states = load_all(stream)
-    file.close
-    return termiated_symbooglix_states
-
-class ConstraintsIterator:
+class SymbooglixConstraintIterator:
     def __init__(self, terminated_symbooglix_state):
         self.constraints = terminated_symbooglix_state.constraints['constraints']
 
@@ -39,3 +23,10 @@ class ConstraintsIterator:
             return constraint
         else:
             raise StopIteration
+
+
+def read_terminated_symbooglix_states(path):
+    stream = file(path,'r')
+    termiated_symbooglix_states = load_all(stream)
+    file.close
+    return termiated_symbooglix_states

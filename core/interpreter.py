@@ -1,5 +1,5 @@
 from z3         import Int, And, Not
-from symbooglix import ConstraintsIterator
+from symbooglix import SymbooglixConstraintIterator
 
 
 class Program:
@@ -45,7 +45,7 @@ def translate_to_program(terminated_symbooglix_states):
     for s in terminated_symbooglix_states:
         id          = s.state_id
         constraints = []
-        for c in ConstraintsIterator(s):
+        for c in SymbooglixConstraintIterator(s):
             # Trim the symbooglix overhead
             # TODO: Find more elegant solution!
             d = c['origin'][:-1].split()

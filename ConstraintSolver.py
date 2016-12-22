@@ -1,8 +1,9 @@
 import os, sys
+
 from core     import symbooglix
 from core     import interpreter
 from core     import analyser
-from optparse import OptionParser
+from optparse import OptionParser # Depricated in 2.7; Use argparse instead!
 from core     import console
 
 PROG = os.path.basename(os.path.splitext(__file__)[0])
@@ -23,7 +24,8 @@ def main():
     # - provides any option,
     # - specifies two input files,
     # - and this input files are not empty.
-    if len(sys.argv) == 1 or len(options.inputs) < 2 or any (not s for s in options.inputs):
+
+    if len(sys.argv) == 1 or options.inputs is None:
         parser.parse_args(['--help'])
 
     # Fetching program variants.
