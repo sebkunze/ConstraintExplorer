@@ -1,13 +1,14 @@
-from z3         import Int, And, Not
-from symbooglix import SymbooglixConstraintIterator
+from z3              import Int, And, Not
+from core.symbooglix import SymbooglixConstraintIterator
 
 
-class Program:
+class Program: # TODO: Rename module or class!
     def __init__(self, terminated_states = []):
         self.terminated_states = terminated_states
 
-    def __repr__(self): # TODO: Insert new line operator!
-        return "program variant with terminating states: " + str(self.terminated_states)
+    def __repr__(self):
+        return "%s(terminated_states: %s)" % (
+            self.__class__.__name__, self.terminated_states)
 
     def add_terminated_state(self, terminated_state):
         self.terminated_states.append(terminated_state)
@@ -19,8 +20,8 @@ class TerminatedState:
         self.constraints = constraints
 
     def __repr__(self): # TODO: Insert new line operator!
-        return "terminating state " + str(self.id) + " with constraints " + str(self.constraints)
-
+        return "%s(id: %s, constraints: %s)" % (
+            self.__class__.__name__, self.id, self.constraints)
 
 class Constraint:
     # TODO: Figure out how to implement recursive data types!
@@ -36,6 +37,8 @@ class Constraint:
         self.z3constraint = z3constraint
 
     def __repr__(self):
+        return "%s(%s)" % (
+            self.__class__.__name__, self.z3constraint)
         return str(self.z3constraint)
 
 # TODO: Move to package utils!?!
@@ -78,11 +81,18 @@ def translate_to_program(terminated_symbooglix_states):
     return p
 
 def gen_constraint(var, op, val):
-    if op == '==': # Do not use 'is' in favour of '=='
+    # INFO: Do not use 'is' in favour of '=='. Causes some internal errors.
+    if op == '==':
         if val.isdigit():
-            return Int(var) == val
+            if var.startswith('!('):
+                return Not(Int(var[2:]) == val)
+            else:
+                return Int(var) == val
         else:
-            return Int(var) == Int(val)
+            if var.startswith('!('):
+                return Not(Int(var[2:]) == Int(val))
+            else:
+                return Int(var) == Int(val)
     else:
         if val.isdigit():
             return Not(Int(var) == val)

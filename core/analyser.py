@@ -1,78 +1,50 @@
 from z3          import Solver, sat
 
-def check_overlapping_states(variantX, variantY):
-    statesInVariantX = len(variantX.terminatedStates)
-    statesInVariantY = len(variantY.terminatedStates)
-    
-    matrix = [[None for x in range(statesInVariantX)] for y in range(statesInVariantY)]
-    
-    for y in range(statesInVariantY):
-        for x in range(statesInVariantX):
-            stateX = variantX.terminatedStates[x]
-            stateY = variantY.terminatedStates[y]
-            matrix[y][x] = check_overlapping_state(stateX, stateY)
-    
-    return matrix
+def analyse_program_states(program_x, program_y):
+    equivalent_states = []
+    overlapping_states = []
+    new_states = []
 
-def check_overlapping_state(stateX, stateY):
+    # Find equivalent states.
+    for state_y in program_y.terminated_states:
+        states_x = find_equivalent_states(state_y, program_x.terminated_states)
+        if states_x:
+            for state_x in states_x:
+                equivalent_states.append((state_x, state_y))
+
+    # Find overlapping states.
+    for state_y in program_y.terminated_states:
+        states_x = find_overlapping_states(state_y, program_x.terminated_states)
+        if states_x:
+            for state_x in states_x:
+                if (state_x, state_y) not in equivalent_states:
+                    overlapping_states.append((state_x, state_y))
+        else:
+            new_states.append(state_y)
+
+    return equivalent_states, overlapping_states, new_states
+
+def find_equivalent_states(state_x, states_y):
+    return [state_y for state_y in states_y if check_equal_states_constraints(state_x, state_y)]
+
+def check_equal_states_constraints(state_x, state_y):
+    return True if set(state_x.constraints) == set(state_y.constraints) else False
+
+def find_overlapping_states(state_x, states_y):
+    return [state_y for state_y in states_y if check_overlapping_constraints(state_x, state_y)]
+
+def check_overlapping_constraints(state_x, state_y):
     s = Solver()
-    
-    for constraint in stateX['constraints']:
-        s.add(constraint)
-        
-    for constraint in stateY['constraints']:
-        s.add(constraint)
-    
-    if s.check() == sat:
-        return True
-    else:
-        return False
 
-# TODO: Check possibility of map-reduce algorithm?
-def check_new_states(variantX, variantY):
-    statesInVariantX = len(variantX.terminatedStates)
-    statesInVariantY = len(variantY.terminatedStates)
-    
-    matrix = [[None for x in range(statesInVariantX)] for y in range(statesInVariantY)]
-    
-    for y in range(statesInVariantY):
-        for x in range(statesInVariantX):
-            stateX = variantX.terminatedStates[x]
-            stateY = variantY.terminatedStates[y]
-            matrix[y][x] = not check_equal_states_constraints(stateX, stateY)
-    
-    return matrix
-
-def check_equal_states_constraints(stateX, stateY):
-    return True if set(stateX.constraints) == set(stateY.constraints) else False
-    
-def generate_list_of_equivalent_states(stateX, statesY):
-    # TODO: Check for filter function!
-    s = []
-    for stateY in statesY:
-        s.append(check_equal_states_constraints(stateX, stateY))
-    
-    return s
-
-def check_overlapping_constraints(stateX, stateY):
-    s = Solver()
-    
     s.push()
-    for constraint in stateX.constraints:
+    for constraint in state_x.constraints:
         s.add(constraint)
-        
-    for constraint in stateY.constraints:
+
+    for constraint in state_y.constraints:
         s.add(constraint)
-    
+
     z = True if s.check() == sat else False
-    
+
     s.pop()
-    
+
     return z
-    
-def generate_list_of_overlapping_states(stateX, statesY):
-    s = []
-    for stateY in statesY:
-        s.append(check_overlapping_constraints(stateX, stateY))
-        
-    return s

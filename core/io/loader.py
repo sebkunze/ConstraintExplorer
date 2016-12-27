@@ -1,0 +1,1 @@
+# load should read symbooglix file and translate it to internal program representation.

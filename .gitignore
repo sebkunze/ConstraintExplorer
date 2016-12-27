@@ -6,3 +6,6 @@ venv/
 
 # python byte code
 **.pyc
+
+# output
+out
