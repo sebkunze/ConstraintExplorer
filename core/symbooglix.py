@@ -1,10 +1,6 @@
-from yaml import load_all
-
-
 class TerminatedSymbooglixState:
-    def __init__(self, state_id, memory, constraints):
+    def __init__(self, state_id, constraints):
         self.state_id    = state_id
-        self.memory      = memory       # TODO: Figure out of memory is required!
         self.constraints = constraints
 
 
@@ -23,10 +19,3 @@ class SymbooglixConstraintIterator:
             return constraint
         else:
             raise StopIteration
-
-
-def read_terminated_symbooglix_states(path):
-    stream = file(path,'r')
-    termiated_symbooglix_states = load_all(stream)
-    file.close
-    return termiated_symbooglix_states

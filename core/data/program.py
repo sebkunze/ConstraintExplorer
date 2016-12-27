@@ -2,7 +2,7 @@ from z3              import Int, And, Not
 from core.symbooglix import SymbooglixConstraintIterator
 
 
-class Program: # TODO: Rename module or class!
+class Program:
     def __init__(self, terminated_states = []):
         self.terminated_states = terminated_states
 
@@ -19,7 +19,7 @@ class TerminatedState:
         self.id          = id
         self.constraints = constraints
 
-    def __repr__(self): # TODO: Insert new line operator!
+    def __repr__(self):
         return "%s(id: %s, constraints: %s)" % (
             self.__class__.__name__, self.id, self.constraints)
 

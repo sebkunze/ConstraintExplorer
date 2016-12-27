@@ -3,9 +3,9 @@ import sys
 
 from optparse       import OptionParser # Depricated in 2.7; Use argparse instead!
 from core           import analyser
-from core           import symbooglix
 from core.interface import console
 from core.io        import dumper
+from core.io        import loader
 from core.data      import program
 
 PROG = os.path.basename(os.path.splitext(__file__)[0])
@@ -32,7 +32,7 @@ def main():
     # Interpreting specified program variants.
     programs = []
     for path in paths:
-        terminated_symbooglix_states = symbooglix.read_terminated_symbooglix_states(path)
+        terminated_symbooglix_states = loader.read_terminated_symbooglix_states(path)
         translated_program = program.translate_to_program(terminated_symbooglix_states)
         programs.append(translated_program)
 
