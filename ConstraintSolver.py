@@ -1,47 +1,50 @@
-import os
-import sys
+#!/usr/bin/env python
+import os, sys
 
 from optparse       import OptionParser # Depricated in 2.7; Use argparse instead!
 from core           import analyser
 from core.interface import console
 from core.io        import dumper
 from core.io        import loader
-from core.data      import program
+from core.logger    import info
 
 PROG = os.path.basename(os.path.splitext(__file__)[0])
 
 VERSION = '0.1'
 
 def main():
-    # Creating console interface.
+    # creating console interface.
     parser = OptionParser(option_class = console.MultipleOption,
                           usage        = 'usage: %prog [options] arg1 arg2',
                           version      = '%s %s' % (PROG, VERSION))
     console.populate_option_parser(parser)
 
-    # Retrieving given options.
+    # retrieving given options.
     options, args = parser.parse_args()
 
-    # Asserting input options.
+    # asserting input options.
     if len(sys.argv) == 1 or options.inputs is None:
         parser.parse_args(['--help'])
 
-    # Fetching program variants.
-    paths = options.inputs
+    # fetching program variants.
+    source_files = options.inputs
 
-    # Interpreting specified program variants.
-    programs = []
-    for path in paths:
-        terminated_symbooglix_states = loader.read_terminated_symbooglix_states(path)
-        translated_program = program.translate_to_program(terminated_symbooglix_states)
-        programs.append(translated_program)
+    info('Analysing source files: %s', source_files)
 
-    # Analysing programs' states.
+    # interpreting specified program variants.
+    programs = loader.load_programs(source_files)
+
+    # analysing programs' states.
     equivalent_states, overlapping_states, new_states = \
         analyser.analyse_program_states(programs[0], programs[1])
 
-    # Exporting analysed programs' states.
-    dumper.dump(equivalent_states, overlapping_states, new_states)
+    # fetching output directory.
+    output_file = options.output
+
+    info('Writing analysed program states to: %s', output_file)
+
+    # exporting analysed programs' states.
+    dumper.dump(equivalent_states, overlapping_states, new_states, output_file)
 
 if __name__ == '__main__':
     main()

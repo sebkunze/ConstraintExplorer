@@ -22,9 +22,10 @@ def populate_option_parser(parser):
                       metavar="FILE",
                       help="specified comma separated list of input FILES")
 
-    parser.add_option("-o", "--output_file",
-                      action="extend",
+    parser.add_option("-o", "--output-file",
+                      action="store",
                       dest="output",
+                      default="out.yml",
                       metavar="FILE",
                       help="defined output to FILE")
 
