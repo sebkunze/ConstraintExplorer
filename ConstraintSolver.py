@@ -34,6 +34,8 @@ def main():
     # interpreting specified program variants.
     programs = loader.load_programs(source_files)
 
+    print 'Comparing program states:\n   ' + source_files[0] + '\n   ' + source_files[1]
+
     # analysing programs' states.
     equivalent_states, overlapping_states, new_states = \
         analyser.analyse_program_states(programs[0], programs[1])

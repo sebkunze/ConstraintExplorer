@@ -7,5 +7,8 @@ venv/
 # python byte code
 **.pyc
 
+# sample
+sample/
+
 # output
 out

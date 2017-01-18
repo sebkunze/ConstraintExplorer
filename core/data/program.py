@@ -1,6 +1,8 @@
-from z3              import Int, And, Not
+from z3              import Bool, Int, And, Not
 from core.symbooglix import SymbooglixConstraintIterator
+from core.logger     import debug, info
 
+import re
 
 class Program:
     def __init__(self, terminated_states = []):
@@ -24,15 +26,6 @@ class TerminatedState:
             self.__class__.__name__, self.id, self.constraints)
 
 class Constraint:
-    # TODO: Figure out how to implement recursive data types!
-    # def __init__(self, variable = None, operator = None, value = None):
-    #     self.variable = variable
-    #     self.operator = operator
-    #     self.value    = value
-    #
-    # def __repr__(self): # TODO: Insert new line operator!
-    #     return str(self.variable) + " " + str(self.operator) + " " + str(self.value)
-
     def __init__(self, z3constraint):
         self.z3constraint = z3constraint
 
@@ -41,60 +34,219 @@ class Constraint:
             self.__class__.__name__, self.z3constraint)
         return str(self.z3constraint)
 
-# TODO: Move to package utils!?!
 def translate_to_program(terminated_symbooglix_states):
-    p = Program([]) # TODO: Figure out why this destroyed everything!
+    program = Program([])
 
-    for s in terminated_symbooglix_states:
-        id          = s.state_id
-        constraints = []
-        for c in SymbooglixConstraintIterator(s):
-            # Trim the symbooglix overhead
-            # TODO: Find more elegant solution!
-            d = c['origin'][:-1].split()
-            d = d[3:]
+    # iterate terminated states of symbolically executed program
+    for symbooglix_state in terminated_symbooglix_states:
 
-            e = []
-            while True:             # do-while body
-                var = d[0]
-                op = d[1]
-                val = d[2]
+        state_id          = symbooglix_state.state_id
+        state_constraints = []
 
-                y = gen_constraint(var, op, val)
+        debug("Parsing state: %s", state_id)
 
-                e.append(y)
+        # iterate constraints of terminated state
+        for symbooglix_constraint in SymbooglixConstraintIterator(symbooglix_state):
+            # retrieve information in "origin"
+            origin = symbooglix_constraint['origin']
 
-                d = d[4:]  # TODO: Find a more appropriate name!
-                if not len(d) > 0:  # do-while condition
-                    break;
+            # remove suffix ";"
+            needle = ';'
+            if needle in origin:
+                origin, _ = origin.split(needle, 1)
 
-            j = None
-            for f in e:
-                if j is None:
-                    j = f
-                else:
-                    j = And(j, f)
+            # remove prefix "[Cmd] assume {:partition}"
+            needle = '[Cmd] assume {:partition} '
+            if needle in origin:
+                _, origin = origin.split(needle, 1)
 
-            constraints.append(j)
-        t = TerminatedState(id, constraints)
-        p.add_terminated_state(t)
-    return p
+            # log origin for debugging.
+            debug("Analysing symbooglix constraint: %s", origin)
 
-def gen_constraint(var, op, val):
-    # INFO: Do not use 'is' in favour of '=='. Causes some internal errors.
-    if op == '==':
-        if val.isdigit():
-            if var.startswith('!('):
-                return Not(Int(var[2:]) == val)
-            else:
-                return Int(var) == val
+            # nested z3 constraints.
+            constraints = []
+
+            # split complex constraints into individual parts
+            has_negation_operator, symbooglix_constraints = split_complex_constraint(origin)
+
+            debug("%s", has_negation_operator)
+            debug("%s", symbooglix_constraints)
+
+            # iterate individual parts of complex constraint.
+            for symbooglix_constraint in symbooglix_constraints:
+                # TODO: Splitting constraints seems to have some side-effect!
+                if symbooglix_constraint == '':
+                    continue
+
+                # strip whitespaces on the both side.
+                symbooglix_constraint = symbooglix_constraint.strip()
+
+                # remove parentheses on both sides.
+                if symbooglix_constraint.startswith('('):
+                    symbooglix_constraint = symbooglix_constraint[1:-1]
+
+                # log symbooglix constraint for debugging.
+                debug("Parsing symbooglix constraint: %s", symbooglix_constraint)
+
+                sub_constraint = None
+
+                # parse to z3 constraint.
+                if is_boolean_constraint(symbooglix_constraint):
+                    sub_constraint = to_boolean_constraint(symbooglix_constraint)
+                elif is_integer_constraint(symbooglix_constraint):
+                    sub_constraint = to_integer_constraint(symbooglix_constraint)
+
+                # log z3 constraint for debugging.
+                debug("Parsed to z3 constraint: %s", sub_constraint)
+
+                constraints.append(sub_constraint)
+
+            # collapse nested z3 constraints.
+            constraint = reduce(lambda x,y: And(x,y), constraints)
+
+            # handle negation operator for complex constraints.
+            if has_negation_operator:
+                constraint = Not(constraint)
+
+            # log collapsed constraint for debugging.
+            debug("Collapsed to z3 constraint: %s", constraint)
+
+            # add to state constraints.
+            state_constraints.append(constraint)
+
+        # create terminated state.
+        state = TerminatedState(state_id, state_constraints)
+
+        # add terminated state to program.
+        program.add_terminated_state(state)
+
+    return program
+
+def split_complex_constraint(constraint):
+    delimiters = '&&'
+
+    has_negation_operator = True if delimiters in constraint and constraint.startswith('!(') else False
+
+    if has_negation_operator:
+        constraint = constraint[2:-1]
+
+    pattern = '|'.join(map(re.escape, delimiters))
+    constraints = re.split(pattern, constraint)
+
+    return has_negation_operator, constraints
+
+def split(string, *delimiters):
+    pattern = '|'.join(map(re.escape, delimiters))
+    return re.split(pattern, string)
+
+def is_boolean_constraint(constraint):
+    # handle parenthesis.
+    constraint.replace('(','')
+    constraint.replace(')','')
+
+    # handle negating operator.
+    if constraint.startswith('!'):
+        constraint = constraint[1:]
+
+    is_boolean_constraint = constraint[0] is 'b'
+
+    return is_boolean_constraint
+
+def to_boolean_constraint(constraint):
+    c = constraint.split()
+
+    if len(c) < 2:
+        # split constraint in variable.
+        var = c[0]
+
+        debug("Found variable: %s", var)
+
+        if var.startswith('!'):
+            return Not(Bool(var[1:]))
         else:
-            if var.startswith('!('):
-                return Not(Int(var[2:]) == Int(val))
+            return Bool(var)
+    else:
+        # split constraint in variable, operator, and value.
+        var = c[0]
+        op  = c[1]
+        val = c[2]
+
+        # TODO: Check what is wrong with the logger when using multiple parameters.
+        # debug("Split constraint in variable: %s, operator: %s, and value: %s", [var, op, val])
+        debug("Found variable: %s", var)
+        debug("Found operator: %s", op)
+        debug("Found value: %s", val)
+
+        if not var.startswith('!'):
+            if op == '==' or op == '<==>':
+                if val == 'true' or val == '!false':
+                    return Bool(var) == True
+                else:
+                    return Bool(var) == False
+            else:
+                if val == 'true' or val == '!false':
+                    return Bool(var) != True
+                else:
+                    return Bool(var) != False
+        else:
+            var = var[1:]
+            if op == '==' or op == '<==>':
+                if val == 'true' or val == '!false':
+                    return Bool(var) != True
+                else:
+                    return Bool(var) != False
+            else:
+                if val == 'true' or val == '!false':
+                    return Bool(var) == True
+                else:
+                    return Bool(var) == False
+
+def is_integer_constraint(constraint):
+    # handle parenthesis.
+    constraint.replace('(','')
+    constraint.replace(')','')
+
+    # handle negating operator.
+    if constraint.startswith('!'):
+        constraint = constraint[1:]
+
+    is_integer_constraint = constraint[0] is 'i'
+
+    return is_integer_constraint
+
+def to_integer_constraint(constraint):
+    c = constraint.split()
+
+    # split constraint in variable, operator, and value.
+    var = c[0]
+    op  = c[1]
+    val = c[2]
+
+    # TODO: Check what is wrong with the logger when using multiple parameters.
+    # debug("Split constraint in variable: %s, operator: %s, and value: %s", [var, op, val])
+    debug("Found variable: %s", var)
+    debug("Found operator: %s", op)
+    debug("Found value: %s", val)
+
+    if not var.startswith('!'):
+        if op == '==' or op == '<==>':
+            if val.isdigit():
+                return Int(var) == val
             else:
                 return Int(var) == Int(val)
-    else:
-        if val.isdigit():
-            return Not(Int(var) == val)
         else:
-            return Not(Int(var) == Int(val))
+            if val.isdigit():
+                return Int(var) != val
+            else:
+                return Int(var) != Int(val)
+    else:
+        if op == '==' or op == '<==>':
+            if val.isdigit():
+                return Int(var) != val
+            else:
+                return Int(var) != Int(val)
+        else:
+            if val.isdigit():
+                return Int(var) == val
+            else:
+                return Int(var) == Int(val)
