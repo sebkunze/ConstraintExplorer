@@ -1,5 +1,7 @@
 from yaml       import load_all
-from core.data  import program
+
+from core.object.data import program
+
 
 def load_programs(paths):
     programs = []
