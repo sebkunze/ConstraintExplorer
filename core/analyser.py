@@ -14,46 +14,24 @@ def analyse_program_states(program_x, program_y):
         logger.debug('Searching for overlapping states of state %s', symbolic_state_y.id)
 
         # TODO: Refactor!
-        overlapping_symbolic_states_x = find_overlapping_states(symbolic_state_y, program_x.symbolic_states)
+        overlapping_symbolic_states_x = symbolic_state_y.find_overlapping_states(program_x.symbolic_states)
 
         logger.debug('Found %i overlapping states.', len(overlapping_symbolic_states_x))
 
         if overlapping_symbolic_states_x:
-            model = generate_overlapping_values(symbolic_state_y.constraints,
-                                                overlapping_symbolic_states_x[0].constraints)
+            test_refinements.append(TestRefinement(symbolic_state_y, overlapping_symbolic_states_x, None))
 
-            test_refinements.append(TestRefinement(symbolic_state_y, overlapping_symbolic_states_x, model))
-        else:
-            model = generate_new_values(symbolic_state_y.constraints)
-
-            test_artefacts.append(TestArtefact(symbolic_state_y, model))
+        # if overlapping_symbolic_states_x:
+        #     model = generate_overlapping_values(symbolic_state_y.constraints,
+        #                                         overlapping_symbolic_states_x[0].constraints)
+        #
+        #     test_refinements.append(TestRefinement(symbolic_state_y, overlapping_symbolic_states_x, model))
+        # else:
+        #     model = generate_new_values(symbolic_state_y.constraints)
+        #
+        #     test_artefacts.append(TestArtefact(symbolic_state_y, model))
 
     return test_artefacts, test_refinements
-
-# def find_equivalent_states(symbolic_state_x, symbolic_states_y):
-#     return [symbolic_state_y for symbolic_state_y in symbolic_states_y if check_equal_states_constraints(symbolic_state_x, symbolic_state_y)]
- #
-# def check_equal_states_constraints(symbolic_state_x, symbolic_state_y):
-#     return True if set(symbolic_state_x.constraints) == set(symbolic_state_y.constraints) else False
-
-def find_overlapping_states(symbolic_state_x, symbolic_states_y):
-    return [symbolic_state_y for symbolic_state_y in symbolic_states_y if check_overlapping_constraints(symbolic_state_x, symbolic_state_y)]
-
-def check_overlapping_constraints(symbolic_state_x, symbolic_state_y):
-    s = Solver()
-
-    s.push()
-    for constraint in symbolic_state_x.constraints:
-        s.add(constraint.z3constraint)
-
-    for constraint in symbolic_state_y.constraints:
-        s.add(constraint.z3constraint)
-
-    z = True if s.check() == sat else False
-
-    s.pop()
-
-    return z
 
 def generate_overlapping_values(constraints_x, constraints_y):
     model = None
