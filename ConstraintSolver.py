@@ -35,19 +35,20 @@ def main():
     # interpreting specified program variants.
     programs = loader.load_programs(source_files)
 
-    # for source_file in source_files:
-    #     name = os.path.basename(os.path.normpath(source_file))
-    #     logger.info('Source file: %s', name)
-
-    print 'Comparing program states:\n   ' + source_files[0] + '\n   ' + source_files[1]
+    print 'Comparing program states in:\n   ' + source_files[0] + '\n   ' + source_files[1]
 
     # analysing programs' states.
-    equivalent_states, overlapping_states, new_states = \
+    # equivalent_states, overlapping_states, new_states = \
+    #     analyser.analyse_program_states(programs[0], programs[1])
+
+    test_artefacts, test_refinements = \
         analyser.analyse_program_states(programs[0], programs[1])
 
-    # overlapping_values = analyser.generate_values_for_overlapping_states(overlapping_states)
+    if test_artefacts:
+        logger.debug('Identified test artefacts: %s', test_artefacts)
 
-    # new_values         = analyser.generate_values_for_new_states(new_states)
+    if test_refinements:
+        logger.debug('Identified test refinements: %s', test_refinements)
 
     # fetching output directory.
     output_file = options.output
@@ -55,7 +56,7 @@ def main():
     logger.info('Writing analysed program states to: %s', output_file)
 
     # exporting analysed programs' states.
-    dumper.dump(equivalent_states, overlapping_states, new_states, output_file)
+    dumper.dump(test_artefacts, test_refinements, output_file)
 
 if __name__ == '__main__':
     main()

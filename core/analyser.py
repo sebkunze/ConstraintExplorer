@@ -1,57 +1,112 @@
-from z3 import Solver, sat
+from z3 import Bool, Int, And, Implies, Not, Solver, sat
+
+from core.object.data.test import TestArtefact, TestRefinement
+from core.utils            import logger
 
 def analyse_program_states(program_x, program_y):
+    test_artefacts = []
 
-    # specify list of equivalent states.
-    equivalent_states = []
-
-    # specify list of overlapping states.
-    overlapping_states = []
-
-    # specify list of new states.
-    new_states = []
-
-    # find equivalent states.
-    for state_y in program_y.terminated_states:
-        states_x = find_equivalent_states(state_y, program_x.terminated_states)
-        if states_x:
-            for state_x in states_x:
-                equivalent_states.append((state_x, state_y))
+    test_refinements = []
 
     # find overlapping states.
-    for state_y in program_y.terminated_states:
-        states_x = find_overlapping_states(state_y, program_x.terminated_states)
-        if states_x:
-            for state_x in states_x:
-                # filter equivalent states.
-                if (state_x, state_y) not in equivalent_states:
-                    overlapping_states.append((state_x, state_y))
+    for symbolic_state_y in program_y.symbolic_states:
+
+        logger.debug('Searching for overlapping states of state %s', symbolic_state_y.id)
+
+        # TODO: Refactor!
+        overlapping_symbolic_states_x = find_overlapping_states(symbolic_state_y, program_x.symbolic_states)
+
+        logger.debug('Found %i overlapping states.', len(overlapping_symbolic_states_x))
+
+        if overlapping_symbolic_states_x:
+            model = generate_overlapping_values(symbolic_state_y.constraints,
+                                                overlapping_symbolic_states_x[0].constraints)
+
+            test_refinements.append(TestRefinement(symbolic_state_y, overlapping_symbolic_states_x, model))
         else:
-            new_states.append(state_y)
+            model = generate_new_values(symbolic_state_y.constraints)
 
-    return equivalent_states, overlapping_states, new_states
+            test_artefacts.append(TestArtefact(symbolic_state_y, model))
 
-def find_equivalent_states(state_x, states_y):
-    return [state_y for state_y in states_y if check_equal_states_constraints(state_x, state_y)]
+    return test_artefacts, test_refinements
 
-def check_equal_states_constraints(state_x, state_y):
-    return True if set(state_x.constraints) == set(state_y.constraints) else False
+# def find_equivalent_states(symbolic_state_x, symbolic_states_y):
+#     return [symbolic_state_y for symbolic_state_y in symbolic_states_y if check_equal_states_constraints(symbolic_state_x, symbolic_state_y)]
+ #
+# def check_equal_states_constraints(symbolic_state_x, symbolic_state_y):
+#     return True if set(symbolic_state_x.constraints) == set(symbolic_state_y.constraints) else False
 
-def find_overlapping_states(state_x, states_y):
-    return [state_y for state_y in states_y if check_overlapping_constraints(state_x, state_y)]
+def find_overlapping_states(symbolic_state_x, symbolic_states_y):
+    return [symbolic_state_y for symbolic_state_y in symbolic_states_y if check_overlapping_constraints(symbolic_state_x, symbolic_state_y)]
 
-def check_overlapping_constraints(state_x, state_y):
+def check_overlapping_constraints(symbolic_state_x, symbolic_state_y):
     s = Solver()
 
     s.push()
-    for constraint in state_x.constraints:
-        s.add(constraint)
+    for constraint in symbolic_state_x.constraints:
+        s.add(constraint.z3constraint)
 
-    for constraint in state_y.constraints:
-        s.add(constraint)
+    for constraint in symbolic_state_y.constraints:
+        s.add(constraint.z3constraint)
 
     z = True if s.check() == sat else False
 
     s.pop()
 
     return z
+
+def generate_overlapping_values(constraints_x, constraints_y):
+    model = None
+
+    solver = Solver()
+
+    x = None
+    for constraint in constraints_x:
+        if x is None:
+            x = constraint.z3constraint
+        else:
+            x = And(constraint.z3constraint, x)
+
+    y = None
+    for constraint in constraints_y:
+        if y is None:
+          y = constraint.z3constraint
+        else:
+            y = And(constraint.z3constraint, y)
+
+    solver.push()
+
+    solver.add(Not(Implies(x, y)))
+    if solver.check() == sat:
+        model = solver.model()
+    else:
+        solver.pop()
+        solver.push()
+
+        solver.add(Not(Implies(y, x)))
+        if solver.check() == sat:
+            model = solver.model()
+
+    solver.pop()
+
+    return model
+
+def generate_new_values(constraints):
+    model = None
+
+    solver = Solver()
+
+    x = None
+    for constraint in constraints:
+        if x is None:
+            x = constraint.z3constraint
+        else:
+            x = And(constraint.z3constraint, x)
+
+    solver.push()
+
+    solver.add(x)
+    if solver.check == sat:
+        model = solver.model()
+
+    return model
