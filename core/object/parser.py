@@ -1,8 +1,6 @@
 import re
 
-from z3 import Bool, Int, And, Not
-
-from core.object.data.solver     import Program, SymbolicState, Constraint
+from core.object.data.solver     import Program, SymbolicState, SimpleConstraint, ComplexConstraint
 from core.object.data.symbooglix import TerminatedSymbooglixState, SymbooglixConstraintIterator
 from core.utils                  import logger
 
@@ -34,51 +32,51 @@ def to_program(terminated_symbooglix_states):
 
             logger.debug("Analysing symbooglix constraint: %s", origin)
 
-            # split complex constraints into individual parts
-            has_negation_operator, symbooglix_sub_constraints = split_complex_constraint(origin)
+            # split symbooglix constraints into its nested parts
+            has_negation_operator, symbooglix_nested_constraints = split_complex_constraint(origin)
 
-            # nested z3 constraints.
-            sub_z3_constraints = []
+            # list of nested constraints.
+            nested_constraints = []
 
             # iterate individual parts of complex constraint.
-            for symbooglix_sub_constraint in symbooglix_sub_constraints:
-                # TODO: Splitting constraints seems to have some side-effect!
-                if symbooglix_sub_constraint == '':
+            for symbooglix_nested_constraint in symbooglix_nested_constraints:
+                # TODO: Splitting nested constraints seems to have side-effect in some cases; needs some further investigation!
+                if symbooglix_nested_constraint == '':
                     continue
 
                 # strip whitespaces on the both side.
-                symbooglix_sub_constraint = symbooglix_sub_constraint.strip()
+                symbooglix_nested_constraint = symbooglix_nested_constraint.strip()
 
                 # remove parentheses on both sides.
-                if symbooglix_sub_constraint.startswith('('):
-                    symbooglix_sub_constraint = symbooglix_constraint[1:-1]
+                if symbooglix_nested_constraint.startswith('('):
+                    symbooglix_nested_constraint = symbooglix_constraint[1:-1]
 
-                logger.debug("Parsing symbooglix sub-constraint: %s", symbooglix_sub_constraint)
+                logger.debug("Parsing symbooglix nested constraint: %s", symbooglix_nested_constraint)
 
-                sub_z3_constraint = None
+                # parse to nested constraint.
+                nested_constraint = to_constraint(symbooglix_nested_constraint)
 
-                # parse to z3 constraint.
-                if   is_boolean_constraint(symbooglix_sub_constraint):
-                    sub_z3_constraint = to_boolean_constraint(symbooglix_sub_constraint)
-                elif is_integer_constraint(symbooglix_sub_constraint):
-                    sub_z3_constraint = to_integer_constraint(symbooglix_sub_constraint)
+                logger.debug("Parsed to nested constraint: %s", nested_constraint)
 
-                # TODO: Figure out where newline commands come from!
-                logger.debug("Parsed to z3 constraint: %s", str(sub_z3_constraint).replace('\n',''))
+                # add to nested constraint.
+                nested_constraints.append(nested_constraint)
 
-                sub_z3_constraints.append(sub_z3_constraint)
+            # collapse nested constraints.
+            if   len(nested_constraints) > 1:
+                # TODO: To this end, we support the &&-operator only.
+                logger.debug("Collapse nested constraints%s", '.')
+                constraint = ComplexConstraint(has_negation_operator, '&&', nested_constraints)
+            else:
+                logger.debug("Collapse non-nested constraints%s", '.')
+                constraint = nested_constraints[0]
+                if has_negation_operator:
+                    logger.debug("- Toggle constraint%s", '.')
+                    constraint.toggle()
 
-            # collapse nested z3 constraints.
-            z3_constraint = reduce(lambda x,y: And(x,y), sub_z3_constraints)
+            logger.debug("Generated to constraint: %s", constraint)
 
-            # handle negation operator for complex constraints.
-            if has_negation_operator:
-                z3_constraint = Not(z3_constraint )
-
-            logger.debug("Collapsed to z3 constraint: %s", str(z3_constraint).replace('\n',''))
-
-            # add to state constraints.
-            state_constraints.append(Constraint(z3_constraint))
+            # add constraint to symbolic state.
+            state_constraints.append(constraint)
 
         # create terminated state.
         state = SymbolicState(state_id, state_constraints)
@@ -105,122 +103,22 @@ def split(string, *delimiters):
     pattern = '|'.join(map(re.escape, delimiters))
     return re.split(pattern, string)
 
-def is_boolean_constraint(constraint):
-    # handle parenthesis.
-    constraint.replace('(','')
-    constraint.replace(')','')
-
-    # handle negating operator.
-    if constraint.startswith('!'):
-        constraint = constraint[1:]
-
-    is_boolean_constraint = constraint[0] is 'b'
-
-    return is_boolean_constraint
-
-def to_boolean_constraint(constraint):
-    c = constraint.split()
-
-    z3 = None
+def to_constraint(symbooglic_constraint):
+    c = symbooglic_constraint.split()
 
     if len(c) < 2:
-        # split constraint in variable.
         var = c[0]
 
-        logger.debug("Found boolean variable: %s", var)
-
         if var.startswith('!'):
-            z3 = Not(Bool(var[1:]))
+            return SimpleConstraint(True, var[1:], '==', 'true')
         else:
-            z3 = Bool(var)
+            return SimpleConstraint(False, var   , '==', 'true')
     else:
-        # split constraint in variable, operator, and value.
         var = c[0]
         op  = c[1]
         val = c[2]
 
-        # TODO: Check what is wrong with the logger when using multiple parameters.
-        # debug("Split constraint in variable: %s, operator: %s, and value: %s", [var, op, val])
-        logger.debug("Found variable: %s", var)
-        logger.debug("Found operator: %s", op)
-        logger.debug("Found value: %s", val)
-
-        if not var.startswith('!'):
-            if op == '==' or op == '<==>':
-                if val == 'true' or val == '!false':
-                    z3 = Bool(var) == True
-                else:
-                    z3 = Bool(var) == False
-            else:
-                if val == 'true' or val == '!false':
-                    z3 = Bool(var) != True
-                else:
-                    z3 = Bool(var) != False
+        if var.startswith('!'):
+            return SimpleConstraint(True, var[1:], op, val)
         else:
-            var = var[1:]
-            if op == '==' or op == '<==>':
-                if val == 'true' or val == '!false':
-                    z3 = Bool(var) != True
-                else:
-                    z3 = Bool(var) != False
-            else:
-                if val == 'true' or val == '!false':
-                    z3 = Bool(var) == True
-                else:
-                    z3 = Bool(var) == False
-
-    return z3
-
-def is_integer_constraint(constraint):
-    # handle parenthesis.
-    constraint.replace('(','')
-    constraint.replace(')','')
-
-    # handle negating operator.
-    if constraint.startswith('!'):
-        constraint = constraint[1:]
-
-    is_integer_constraint = constraint[0] is 'i'
-
-    return is_integer_constraint
-
-def to_integer_constraint(constraint):
-    c = constraint.split()
-
-    # split constraint in variable, operator, and value.
-    var = c[0]
-    op  = c[1]
-    val = c[2]
-
-    z3 = None
-
-    # TODO: Check what is wrong with the logger when using multiple parameters.
-    # debug("Split constraint in variable: %s, operator: %s, and value: %s", [var, op, val])
-    logger.debug("Found integer variable: %s", var)
-    logger.debug("Found operator: %s", op)
-    logger.debug("Found value: %s", val)
-
-    if not var.startswith('!'):
-        if op == '==' or op == '<==>':
-            if val.isdigit():
-                z3 = Int(var) == int(val)
-            else:
-                z3 = Int(var) == Int(val)
-        else:
-            if val.isdigit():
-                z3 = Int(var) != int(val)
-            else:
-                z3 = Int(var) != Int(val)
-    else:
-        if op == '==' or op == '<==>':
-            if val.isdigit():
-                z3 = Int(var) != int(val)
-            else:
-                z3 = Int(var) != Int(val)
-        else:
-            if val.isdigit():
-                z3 = Int(var) == int(val)
-            else:
-                z3 = Int(var) == Int(val)
-
-    return z3
+            return SimpleConstraint(False, var, op, val)

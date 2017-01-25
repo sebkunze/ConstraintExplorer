@@ -6,10 +6,10 @@ constraint_solver_home_environment \
 filename \
     = os.path.join(constraint_solver_home_environment, 'ConstraintSolver.log')
 
-def info(msg, args = []):
+def info(msg, args = []): # TODO: Support multiple arguments!
     log.info(msg, args)
 
-def debug(msg, args = []):
+def debug(msg, args = []): # TODO: Support multiple arguments!
     log.debug(msg, args)
 
 log = logging.getLogger('ConstraintSolver')
