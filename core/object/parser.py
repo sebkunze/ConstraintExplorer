@@ -17,8 +17,11 @@ def to_program(terminated_symbooglix_states):
 
         # iterate constraints of terminated state
         for symbooglix_constraint in SymbooglixConstraintIterator(symbooglix_state):
-            # retrieve information in "origin"
+            # retrieve information in "origin".
             origin = symbooglix_constraint['origin']
+
+            # retrieve information in "expr".
+            expr   = symbooglix_constraint['expr']
 
             # remove suffix ";"
             needle = ';'
@@ -103,22 +106,14 @@ def split(string, *delimiters):
     pattern = '|'.join(map(re.escape, delimiters))
     return re.split(pattern, string)
 
-def to_constraint(symbooglic_constraint):
-    c = symbooglic_constraint.split()
+def to_constraint(symbooglix_constraint):
+    c = symbooglix_constraint.split()
 
-    if len(c) < 2:
-        var = c[0]
+    var = c[0]
+    op  = c[1] if len(c) > 1 else '=='
+    val = c[2] if len(c) > 2 else 'true'
 
-        if var.startswith('!'):
-            return SimpleConstraint(True, var[1:], '==', 'true')
-        else:
-            return SimpleConstraint(False, var   , '==', 'true')
+    if var.startswith('!'):
+        return SimpleConstraint(True, var[1:], op, val)
     else:
-        var = c[0]
-        op  = c[1]
-        val = c[2]
-
-        if var.startswith('!'):
-            return SimpleConstraint(True, var[1:], op, val)
-        else:
-            return SimpleConstraint(False, var, op, val)
+        return SimpleConstraint(False, var, op, val)

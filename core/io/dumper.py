@@ -13,7 +13,7 @@ def dump(tests, output_file):
 
     if tests:
         logger.info("Dumping tests to file %s", output_file)
-        yaml.dump_all(tests, stream)
+        yaml.dump_all(tests, stream, default_flow_style=False)
     else:
         raise ValueError("Empty list!")
 

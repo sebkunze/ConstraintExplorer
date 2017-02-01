@@ -26,11 +26,8 @@ class SymbolicState:
         self.constraints = constraints
 
     def __str__(self):
-        return "\n %s\n id: %s\n constraints: %s" % (
-            self.yaml_object_header(), self.id, self.constraints)
-
-    def yaml_object_header(self):
-        return "!!python/object:core.object.data.solver.SymbolicState"
+        return "%s(id: %s, constraints: %s)" % (
+            self.__class__.__name__, self.id, self.constraints)
 
     def add_constraint(self, constraint):
         self.constraints.append(constraint)
@@ -49,13 +46,30 @@ class SymbolicState:
 
         return True if s.check() == sat else False
 
-    def is_equivalent_state(self, state): # TODO: Something seems to be wrong here!
+    def find_equivalent_states(self, states):
+        return [s for s in states if self.is_equivalent_state(s)]
+
+    def is_equivalent_state(self, state):
         return True if set(self.constraints) == set(state.constraints) else False
+
+    def gen_values(self):
+        s = Solver()
+
+        logger.info("Generating values for symbolic state %s.", self.id)
+
+        for constraint in self.constraints:
+            s.add(constraint.z3())
+
+        if s.check() == sat:
+            return True,  s.model()
+        else:
+            s.pop()
+            return False, None
 
 class Constraint:
     """"""
     def z3(self):
-        raise NotImplementedError("Should have implemented this")
+        raise NotImplementedError("abstract method call")
 
 class ComplexConstraint(Constraint):
 
@@ -63,6 +77,18 @@ class ComplexConstraint(Constraint):
         self.neg         = neg
         self.op          = op
         self.constraints = constraints
+
+
+    def __eq__(self, other):
+        if isinstance(other, ComplexConstraint):
+            return self.neg == other.neg \
+                   and self.op == other.op \
+                   and self.constraints == other.constraints
+
+        return NotImplemented
+
+    def __hash__(self):
+        return hash(self.neg) + hash(self.op) + reduce(lambda x,y: x + hash(y), self.constraints, hash(''))
 
     def __str__(self):
         if self.neg:
@@ -82,7 +108,6 @@ class ComplexConstraint(Constraint):
                     x = And(x, c.z3())
 
             return Not(x)
-            # return Not(reduce(lambda x,y: And(x,y.z3()), self.constraints, []))
         else:
             x = None
             for c in self.constraints:
@@ -100,6 +125,18 @@ class SimpleConstraint(Constraint):
         self.var = var
         self.op  = op
         self.val = val
+
+    def __eq__(self, other):
+        if isinstance(other, SimpleConstraint):
+            return self.neg == other.neg \
+                   and self.var == other.var \
+                   and self.op == other.op \
+                   and self.val == other.val
+
+        return NotImplemented
+
+    def __hash__(self):
+        return hash(self.neg) + hash(self.var) + hash(self.op) + hash(self.val)
 
     def __str__(self):
         if self.neg:
@@ -148,14 +185,6 @@ def to_boolean_constraint(constraint):
     op  = constraint.op
     val = constraint.val
 
-    z3 = None
-
-    # if op is None and val is None:
-    #     if var.startswith('!'):
-    #         z3 = Bool(var[1:]) == False
-    #     else:
-    #         z3 = Bool(var) == True
-    # else:
     if not var.startswith('!'):
         if op == '==' or op == '<==>':
             if val == 'true' or val == '!false':
@@ -208,8 +237,6 @@ def to_integer_constraint(constraint):
     var = constraint.var
     op  = constraint.op
     val = constraint.val
-
-    z3 = None
 
     if not var.startswith('!'):
         if op == '==' or op == '<==>':
