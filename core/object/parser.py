@@ -21,7 +21,7 @@ def to_program(terminated_symbooglix_states):
             origin = symbooglix_constraint['origin']
 
             # retrieve information in "expr".
-            expr   = symbooglix_constraint['expr']
+            expr = symbooglix_constraint['expr']
 
             # remove suffix ";"
             needle = ';'
@@ -35,8 +35,12 @@ def to_program(terminated_symbooglix_states):
 
             logger.debug("Analysing symbooglix constraint: %s", origin)
 
+            # skip symbooglix constraints that are part of other symbooglix constraints, thus evaluating to true.
+            if expr == 'true':
+                continue
+
             # split symbooglix constraints into its nested parts
-            has_negation_operator, symbooglix_nested_constraints = split_complex_constraint(origin)
+            has_negation_operator, symbooglix_nested_constraints = split_complex_constraint(expr)
 
             # list of nested constraints.
             nested_constraints = []
@@ -65,7 +69,7 @@ def to_program(terminated_symbooglix_states):
                 nested_constraints.append(nested_constraint)
 
             # collapse nested constraints.
-            if   len(nested_constraints) > 1:
+            if len(nested_constraints) > 1:
                 # TODO: To this end, we support the &&-operator only.
                 logger.debug("Collapse nested constraints%s", '.')
                 constraint = ComplexConstraint(has_negation_operator, '&&', nested_constraints)
@@ -89,16 +93,29 @@ def to_program(terminated_symbooglix_states):
 
     return program
 
-def split_complex_constraint(constraint):
+# def split_complex_constraint(constraint):
+#     delimiters = '&&'
+#
+#     has_negation_operator = True if delimiters in constraint and constraint.startswith('!(') else False
+#
+#     if has_negation_operator:
+#         constraint = constraint[2:-1]
+#
+#     pattern = '|'.join(map(re.escape, delimiters))
+#     constraints = re.split(pattern, constraint)
+#
+#     return has_negation_operator, constraints
+
+def split_complex_constraint(expr):
     delimiters = '&&'
 
-    has_negation_operator = True if delimiters in constraint and constraint.startswith('!(') else False
+    has_negation_operator = True if delimiters in expr and expr.startswith('!(') else False
 
     if has_negation_operator:
-        constraint = constraint[2:-1]
+        expr = expr[2:-1]
 
     pattern = '|'.join(map(re.escape, delimiters))
-    constraints = re.split(pattern, constraint)
+    constraints = re.split(pattern, expr)
 
     return has_negation_operator, constraints
 
@@ -113,7 +130,15 @@ def to_constraint(symbooglix_constraint):
     op  = c[1] if len(c) > 1 else '=='
     val = c[2] if len(c) > 2 else 'true'
 
+    # TODO: Find better solution!
+    var = var.replace('~sb_','')
+    var = var.replace('_0', '')
+    val = val.replace('~sb_','')
+    val = val.replace('_0', '')
+
     if var.startswith('!'):
-        return SimpleConstraint(True, var[1:], op, val)
+        constraint = SimpleConstraint(True, var[1:], op, val)
     else:
-        return SimpleConstraint(False, var, op, val)
+        constraint = SimpleConstraint(False, var, op, val)
+
+    return constraint
