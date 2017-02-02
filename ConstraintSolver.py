@@ -1,33 +1,31 @@
 #!/usr/bin/env python
-import os, sys
-
-from optparse       import OptionParser # Depricated in 2.7; Use argparse instead!
+from argparse       import ArgumentParser
 
 from core           import analyser
-from core.interface import console
 from core.io        import loader, dumper
-
-PROG = os.path.basename(os.path.splitext(__file__)[0])
 
 VERSION = '0.1'
 
 def main():
-    # creating console interface.
-    parser = OptionParser(option_class = console.MultipleOption,
-                          usage        = 'usage: %prog [options] arg1 arg2',
-                          version      = '%s %s' % (PROG, VERSION))
+    # creating console interface
+    parser = ArgumentParser(description="analysing terminated states of two products.")
 
-    console.populate_option_parser(parser)
+    # adding positional arguments.
+    parser.add_argument("sources", help="input source files.", nargs="+")
 
-    # retrieving given options.
-    options, args = parser.parse_args()
+    # adding optional arguments
+    parser.add_argument("-t", "--target", help="output target file.", default="out.yml")
 
-    # asserting input options.
-    if len(sys.argv) == 1 or options.inputs is None:
-        parser.parse_args(['--help'])
+    # adding mutually exclusive arguments.
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-v", "--verbose", action="store_true")
+    group.add_argument("-q", "--quit",    action="store_true", default=1)
+
+    # populating parser.
+    options = parser.parse_args()
 
     # fetching program variants.
-    source_files = options.inputs
+    source_files = options.sources
 
     # interpreting specified program variants.
     programs = loader.load_programs(source_files)
@@ -36,7 +34,7 @@ def main():
     tests = analyser.analyse_program_states(programs[0], programs[1])
 
     # fetching output directory.
-    output_file = options.output
+    output_file = options.target
 
     # exporting analysed programs' states.
     dumper.dump(tests, output_file)
