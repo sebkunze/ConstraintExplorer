@@ -21,16 +21,17 @@ class Program:
 
 class SymbolicState:
     """class representing a symbolic state"""
-    def __init__(self, id = None, constraints = []):
-        self.id          = id
-        self.constraints = constraints
+    def __init__(self, state_id, state_constraints, trace):
+        self.state_id          = state_id
+        self.state_constraints = state_constraints
+        self.trace             = trace
 
     def __str__(self):
-        return "%s(id: %s, constraints: %s)" % (
-            self.__class__.__name__, self.id, self.constraints)
+        return "%s(id: %s, constraints: %s, trace: %s)" % (
+            self.__class__.__name__, self.state_id, self.state_constraints, self.trace)
 
     def add_constraint(self, constraint):
-        self.constraints.append(constraint)
+        self.state_constraints.append(constraint)
 
     def find_overlapping_states(self, states):
         return [s for s in states if self.is_overlapping_state(s) and not self.is_equivalent_state(s)]
@@ -38,10 +39,10 @@ class SymbolicState:
     def is_overlapping_state(self, state):
         s = Solver()
 
-        for constraint in self.constraints:
+        for constraint in self.state_constraints:
             s.add(constraint.z3())
 
-        for constraint in state.constraints:
+        for constraint in state.state_constraints:
             s.add(constraint.z3())
 
         return True if s.check() == sat else False
@@ -50,14 +51,14 @@ class SymbolicState:
         return [s for s in states if self.is_equivalent_state(s)]
 
     def is_equivalent_state(self, state):
-        return True if set(self.constraints) == set(state.constraints) else False
+        return True if set(self.state_constraints) == set(state.state_constraints) else False
 
     def gen_values(self):
         s = Solver()
 
-        logger.info("Generating values for symbolic state %s.", self.id)
+        logger.info("Generating values for symbolic state %s.", self.state_id)
 
-        for constraint in self.constraints:
+        for constraint in self.state_constraints:
             s.add(constraint.z3())
 
         if s.check() == sat:
@@ -87,8 +88,10 @@ class ComplexConstraint(Constraint):
 
         return NotImplemented
 
+
     def __hash__(self):
         return hash(self.neg) + hash(self.op) + reduce(lambda x,y: x + hash(y), self.constraints, hash(''))
+
 
     def __str__(self):
         if self.neg:
@@ -126,6 +129,7 @@ class SimpleConstraint(Constraint):
         self.op  = op
         self.val = val
 
+
     def __eq__(self, other):
         if isinstance(other, SimpleConstraint):
             return self.neg == other.neg \
@@ -135,8 +139,10 @@ class SimpleConstraint(Constraint):
 
         return NotImplemented
 
+
     def __hash__(self):
         return hash(self.neg) + hash(self.var) + hash(self.op) + hash(self.val)
+
 
     def __str__(self):
         if self.neg:
@@ -154,8 +160,10 @@ class SimpleConstraint(Constraint):
                 return "%s %s %s" \
                        % (self.var, self.op, self.val)
 
+
     def toggle(self):
         self.neg = not self.neg
+
 
     def z3(self):
         if   is_boolean_constraint(self):
@@ -177,6 +185,7 @@ def is_boolean_constraint(constraint):
     is_boolean_constraint = var[0] is 'b'
 
     return is_boolean_constraint
+
 
 def to_boolean_constraint(constraint):
     logger.debug("Generating z3 boolean for %s", constraint)
@@ -216,6 +225,7 @@ def to_boolean_constraint(constraint):
 
     return z3
 
+
 def is_integer_constraint(constraint):
     var = constraint.var
 
@@ -230,6 +240,7 @@ def is_integer_constraint(constraint):
     is_integer_constraint = var[0] is 'i'
 
     return is_integer_constraint
+
 
 def to_integer_constraint(constraint):
     logger.debug("Generating z3 integer constraints for %s", constraint)

@@ -1,3 +1,8 @@
+class TestWrapper:
+    """class wrapping tests to parse output as a list tests instead of a sequence of multiple documents."""
+    def __init__(self, tests):
+        self.tests = tests
+
 class Test:
     """class representing modified test input data"""
 

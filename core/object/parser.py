@@ -4,6 +4,7 @@ from core.object.data.solver     import Program, SymbolicState, SimpleConstraint
 from core.object.data.symbooglix import TerminatedSymbooglixState, SymbooglixConstraintIterator
 from core.utils                  import logger
 
+
 def to_program(terminated_symbooglix_states):
     program = Program([])
 
@@ -12,28 +13,16 @@ def to_program(terminated_symbooglix_states):
 
         state_id          = symbooglix_state.state_id
         state_constraints = []
+        state_memory      = symbooglix_state.memory
 
         logger.info("Parsing state: %s", state_id)
 
         # iterate constraints of terminated state
         for symbooglix_constraint in SymbooglixConstraintIterator(symbooglix_state):
-            # retrieve information in "origin".
-            origin = symbooglix_constraint['origin']
-
             # retrieve information in "expr".
             expr = symbooglix_constraint['expr']
 
-            # remove suffix ";"
-            needle = ';'
-            if needle in origin:
-                origin, _ = origin.split(needle, 1)
-
-            # remove prefix "[Cmd] assume {:partition}"
-            needle = '[Cmd] assume {:partition} '
-            if needle in origin:
-                _, origin = origin.split(needle, 1)
-
-            logger.debug("Analysing symbooglix constraint: %s", origin)
+            logger.debug("Analysing symbooglix constraint: %s", expr)
 
             # skip symbooglix constraints that are part of other symbooglix constraints, thus evaluating to true.
             if expr == 'true':
@@ -85,26 +74,17 @@ def to_program(terminated_symbooglix_states):
             # add constraint to symbolic state.
             state_constraints.append(constraint)
 
+        #
+        state_trace = to_stack_trace(state_memory)
+
         # create terminated state.
-        state = SymbolicState(state_id, state_constraints)
+        state = SymbolicState(state_id, state_constraints, state_trace)
 
         # add terminated state to program.
         program.add_symbolic_state(state)
 
     return program
 
-# def split_complex_constraint(constraint):
-#     delimiters = '&&'
-#
-#     has_negation_operator = True if delimiters in constraint and constraint.startswith('!(') else False
-#
-#     if has_negation_operator:
-#         constraint = constraint[2:-1]
-#
-#     pattern = '|'.join(map(re.escape, delimiters))
-#     constraints = re.split(pattern, constraint)
-#
-#     return has_negation_operator, constraints
 
 def split_complex_constraint(expr):
     delimiters = '&&'
@@ -119,9 +99,11 @@ def split_complex_constraint(expr):
 
     return has_negation_operator, constraints
 
+
 def split(string, *delimiters):
     pattern = '|'.join(map(re.escape, delimiters))
     return re.split(pattern, string)
+
 
 def to_constraint(symbooglix_constraint):
     c = symbooglix_constraint.split()
@@ -137,8 +119,16 @@ def to_constraint(symbooglix_constraint):
     val = val.replace('_0', '')
 
     if var.startswith('!'):
-        constraint = SimpleConstraint(True, var[1:], op, val)
+        constraint = SimpleConstraint(True, var[1:], op, val )
     else:
         constraint = SimpleConstraint(False, var, op, val)
 
     return constraint
+
+def to_stack_trace(symbooglix_memory):
+    # some string modifications.
+    trace = symbooglix_memory['globals']['callStack']['expr']
+    trace = trace.split('sb_callStack_0')[1]
+    trace = trace[1:].split("[")
+    trace = map(lambda x: x[0:-3].split('~sb_',2)[2],trace)
+    return trace
