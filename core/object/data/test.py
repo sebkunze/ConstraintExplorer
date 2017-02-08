@@ -3,11 +3,11 @@ class TestWrapper:
     def __init__(self, tests):
         self.tests = tests
 
+
 class Test:
-    """class representing modified test input data"""
 
     def __init__(self, target, origins, values):
-        self.target   = target
+        self.target  = target
         self.origins = origins
         self.values  = values
 

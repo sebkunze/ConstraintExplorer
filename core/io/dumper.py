@@ -3,12 +3,15 @@ import yaml
 from core.utils            import logger
 from core.object.data.test import TestWrapper
 
-enable_references = False
+conf_enable_references = False
 
 def dump(tests, output_file):
     # configure anchors and aliases for references.
-    if not enable_references:
+    if not conf_enable_references:
         yaml.Dumper.ignore_aliases = lambda *args: True
+
+    # add custom representer classes.
+    # yaml.add_representer(Program, ProgramDumper)
 
     wrapper = TestWrapper(tests)
 

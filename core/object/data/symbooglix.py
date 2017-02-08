@@ -1,8 +1,8 @@
 class TerminatedSymbooglixState:
-    """class representing a terminated symbooglix state"""
+
     def __init__(self, state_id, status, memory, constraints):
         self.state_id    = state_id
-        self.status      = status
+        self.status      = status   # TODO: Consider removing the status
         self.memory      = memory
         self.constraints = constraints
 
@@ -10,8 +10,15 @@ class TerminatedSymbooglixState:
         return "%s(state_id: %s, status: %s, memory: %s, constraints: %s)" % (
             self.__class__.__name__, self.state_id, self.status, self.memory, self.constraints)
 
+
+class SymbooglixGlobalsIterator:
+
+    def __init__(self, terminated_symbooglix_state):
+        self.memory = terminated_symbooglix_state.memory['globals']
+
+
 class SymbooglixConstraintIterator:
-    """class used for iterating a terminated symbooglix state's constraints"""
+
     def __init__(self, terminated_symbooglix_state):
         self.constraints = terminated_symbooglix_state.constraints['constraints']
 

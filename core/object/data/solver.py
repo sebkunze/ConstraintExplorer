@@ -1,280 +1,77 @@
-from z3 import Bool, Int, And, Implies, Not, Solver, sat
-
-from core.utils import logger
-
 class Program:
-    """class representing an analysed program"""
-    def __init__(self, symbolic_states = []):
-        self.symbolic_states = symbolic_states
 
-    def __repr__(self):
-        return "%s(terminated_states: %s)" % (
-            self.__class__.__name__, self.symbolic_states)
+    def __init__(self):
+        self.states = []
 
     def __str__(self):
-        return "%s(terminated_states: %s)" % (
-            self.__class__.__name__, self.symbolic_states)
-
-    def add_symbolic_state(self, symbolic_state):
-        self.symbolic_states.append(symbolic_state)
+        return "%s(states: %s)" % (
+            self.__class__.__name__, self.states)
 
 
 class SymbolicState:
-    """class representing a symbolic state"""
-    def __init__(self, state_id, state_constraints, trace):
-        self.state_id          = state_id
-        self.state_constraints = state_constraints
-        self.trace             = trace
+
+    def __init__(self, id, conditions, trace):
+        self.id         = id
+        self.conditions = conditions
+        self.trace      = trace
 
     def __str__(self):
-        return "%s(id: %s, constraints: %s, trace: %s)" % (
-            self.__class__.__name__, self.state_id, self.state_constraints, self.trace)
-
-    def add_constraint(self, constraint):
-        self.state_constraints.append(constraint)
-
-    def find_overlapping_states(self, states):
-        return [s for s in states if self.is_overlapping_state(s) and not self.is_equivalent_state(s)]
-
-    def is_overlapping_state(self, state):
-        s = Solver()
-
-        for constraint in self.state_constraints:
-            s.add(constraint.z3())
-
-        for constraint in state.state_constraints:
-            s.add(constraint.z3())
-
-        return True if s.check() == sat else False
-
-    def find_equivalent_states(self, states):
-        return [s for s in states if self.is_equivalent_state(s)]
-
-    def is_equivalent_state(self, state):
-        return True if set(self.state_constraints) == set(state.state_constraints) else False
-
-    def gen_values(self):
-        s = Solver()
-
-        logger.info("Generating values for symbolic state %s.", self.state_id)
-
-        for constraint in self.state_constraints:
-            s.add(constraint.z3())
-
-        if s.check() == sat:
-            return True,  s.model()
-        else:
-            s.pop()
-            return False, None
-
-class Constraint:
-    """"""
-    def z3(self):
-        raise NotImplementedError("abstract method call")
-
-class ComplexConstraint(Constraint):
-
-    def __init__(self, neg, op, constraints):
-        self.neg         = neg
-        self.op          = op
-        self.constraints = constraints
-
+        return "%s(id: %s, conditions: %s, trace: %s)" % (
+            self.__class__.__name__, self.id, reduce(lambda x, y: x + str(y), self.conditions, ''), self.trace)
 
     def __eq__(self, other):
-        if isinstance(other, ComplexConstraint):
-            return self.neg == other.neg \
-                   and self.op == other.op \
-                   and self.constraints == other.constraints
+        if isinstance(other, SymbolicState):
+            return self.id == other.id \
+                   and self.conditions == other.conditions \
+                   and self.trace == other.trace
 
         return NotImplemented
 
-
     def __hash__(self):
-        return hash(self.neg) + hash(self.op) + reduce(lambda x,y: x + hash(y), self.constraints, hash(''))
+        return hash(self.id) + reduce(lambda x, y: x + hash(y), self.conditions, hash(''))
 
+
+class Condition:
+
+    def __init__(self, neg, com, cons):
+        self.neg  = neg
+        self.com  = com
+        self.cons = cons
 
     def __str__(self):
-        if self.neg:
-            return "!(%s)" \
-                   % reduce(lambda x,y: str(x) + ' && ' + str(y), self.constraints)
-        else:
-            return "%s" \
-                   % reduce(lambda x,y: str(x) + ' && ' + str(y), self.constraints)
+        return "%s(neg: %s, com: %s, cons: %s)" % (
+            self.__class__.__name__, self.neg, self.com, '[' + reduce(lambda x, y: x + ', ' + str(y), self.cons, '')[2:] + ']')
 
-    def z3(self):
-        if self.neg:
-            x = None
-            for c in self.constraints:
-                if x is None:
-                    x = c.z3()
-                else:
-                    x = And(x, c.z3())
+    def __eq__(self, other):
+        if isinstance(other, Condition):
+            return self.neg == other.neg \
+                   and self.com == other.com \
+                   and self.cons == other.cons
 
-            return Not(x)
-        else:
-            x = None
-            for c in self.constraints:
-                if x is None:
-                    x = c.z3()
-                else:
-                    x = And(x, c.z3())
+        return NotImplemented
 
-            return x
+    def __hash__(self):
+        return hash(self.neg) + hash(self.com) + reduce(lambda x, y: x + hash(y), self.cons, hash(''))
 
-class SimpleConstraint(Constraint):
 
-    def __init__(self, neg, var, op, val):
-        self.neg = neg
+class Constraint:
+
+    def __init__(self, var, op, val):
         self.var = var
         self.op  = op
         self.val = val
 
+    def __str__(self):
+        return "%s(var: %s, op: %s, val: %s)" % (
+            self.__class__.__name__, self.var, self.op, self.val)
 
     def __eq__(self, other):
-        if isinstance(other, SimpleConstraint):
-            return self.neg == other.neg \
-                   and self.var == other.var \
+        if isinstance(other, Constraint):
+            return self.var == other.var \
                    and self.op == other.op \
                    and self.val == other.val
 
         return NotImplemented
 
-
     def __hash__(self):
-        return hash(self.neg) + hash(self.var) + hash(self.op) + hash(self.val)
-
-
-    def __str__(self):
-        if self.neg:
-            if self.op is None and self.val is None:
-                return "!%s" \
-                       % self.var
-            else:
-                return "!(%s %s %s)" \
-                       % (self.var, self.op, self.val)
-        else:
-            if self.op is None and self.val is None:
-                return "%s" \
-                       % self.var
-            else:
-                return "%s %s %s" \
-                       % (self.var, self.op, self.val)
-
-
-    def toggle(self):
-        self.neg = not self.neg
-
-
-    def z3(self):
-        if   is_boolean_constraint(self):
-            return to_boolean_constraint(self)
-        elif is_integer_constraint(self):
-            return to_integer_constraint(self)
-
-def is_boolean_constraint(constraint):
-    var = constraint.var
-
-    # handle parenthesis.
-    var.replace('(','')
-    var.replace(')','')
-
-    # handle negating operator.
-    if var.startswith('!'):
-        var = var[1:]
-
-    is_boolean_constraint = var[0] is 'b'
-
-    return is_boolean_constraint
-
-
-def to_boolean_constraint(constraint):
-    logger.debug("Generating z3 boolean for %s", constraint)
-    neg = constraint.neg
-    var = constraint.var
-    op  = constraint.op
-    val = constraint.val
-
-    if not var.startswith('!'):
-        if op == '==' or op == '<==>':
-            if val == 'true' or val == '!false':
-                z3 = Bool(var) == True
-            else:
-                z3 = Bool(var) == False
-        else:
-            if val == 'true' or val == '!false':
-                z3 = Bool(var) != True
-            else:
-                z3 = Bool(var) != False
-    else:
-        var = var[1:]
-        if op == '==' or op == '<==>':
-            if val == 'true' or val == '!false':
-                z3 = Bool(var) != True
-            else:
-                z3 = Bool(var) != False
-        else:
-            if val == 'true' or val == '!false':
-                z3 = Bool(var) == True
-            else:
-                z3 = Bool(var) == False
-
-    if neg:
-        z3 = Not(z3)
-
-    logger.debug("-> %s", str(z3).replace('\n',' '))
-
-    return z3
-
-
-def is_integer_constraint(constraint):
-    var = constraint.var
-
-    # handle parenthesis.
-    var.replace('(', '')
-    var.replace(')', '')
-
-    # handle negating operator.
-    if var.startswith('!'):
-        var = var[1:]
-
-    is_integer_constraint = var[0] is 'i'
-
-    return is_integer_constraint
-
-
-def to_integer_constraint(constraint):
-    logger.debug("Generating z3 integer constraints for %s", constraint)
-    neg = constraint.neg
-    var = constraint.var
-    op  = constraint.op
-    val = constraint.val
-
-    if not var.startswith('!'):
-        if op == '==' or op == '<==>':
-            if val.isdigit():
-                z3 = Int(var) == int(val)
-            else:
-                z3 = Int(var) == Int(val)
-        else:
-            if val.isdigit():
-                z3 = Int(var) != int(val)
-            else:
-                z3 = Int(var) != Int(val)
-    else:
-        if op == '==' or op == '<==>':
-            if val.isdigit():
-                z3 = Int(var) != int(val)
-            else:
-                z3 = Int(var) != Int(val)
-        else:
-            if val.isdigit():
-                z3 = Int(var) == int(val)
-            else:
-                z3 = Int(var) == Int(val)
-
-    if neg:
-        z3 = Not(z3)
-
-    logger.debug("-> %s", str(z3).replace('\n',' '))
-
-    return z3
+        return hash(self.var) + hash(self.op) + hash(self.val)
