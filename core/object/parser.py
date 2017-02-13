@@ -10,27 +10,27 @@ def to_program(terminated_symbooglix_states):
     # iterate terminated states of symbolically executed program
     for symbooglix_state in terminated_symbooglix_states:
 
-        logger.info("Extracting state's id.")
+        logger.info("Extracting state's id.%s", '')
 
         # retrieve id.
         id = to_id(symbooglix_state)
 
-        logger.info("Extracting state's conditions.")
+        logger.info("Extracting state's conditions.%s", '')
 
         # retrieve conditions.
         conditions = to_conditions(symbooglix_state)
 
-        logger.info("Extracting state's trace.")
+        logger.info("Extracting state's trace.%s", '')
 
         # retrieve trace.
         trace = to_trace(symbooglix_state)
 
-        logger.info("Combining state's information.")
+        logger.info("Combining state's information.%s", '')
 
         # create symbolic state
         state = SymbolicState(id, conditions, trace)
 
-        logger.info("Adding state's information to program.")
+        logger.info("Adding state's information to program.%s", '')
 
         # add identified state.
         program.states.append(state)

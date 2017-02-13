@@ -3,6 +3,17 @@ from z3 import Bool, Int, And, Implies, Not, Solver, sat
 from core.object.data.test import Test
 from core.utils            import logger
 
+
+def analyse(programs):
+    tests = []
+
+    for program in programs:
+        for state in program.states:
+            _, values = gen_values(state)
+            tests.append(Test(state, [], str(values).replace('\n', '')))
+
+    return tests
+
 def analyse_program_states(program_t, program_s):
     tests = []
 
@@ -72,10 +83,14 @@ def x_z3(condition): # TODO: Change method name!
     return x
 
 def to_z3(constraint): # TODO: Change method name!
-    if is_boolean_constraint(constraint):
+    if is_boolean_constraint(constraint.var) \
+            or is_boolean_constraint(constraint.val):
         return to_boolean_constraint(constraint)
-    elif is_integer_constraint(constraint):
+    elif is_integer_constraint(constraint.var) \
+            or is_integer_constraint(constraint.val):
         return to_integer_constraint(constraint)
+    else:
+        raise Exception("type not supported.")
 
 def gen_values(symbolic_state):
     s = Solver()
@@ -91,104 +106,107 @@ def gen_values(symbolic_state):
         s.pop()
         return False, None
 
-def is_boolean_constraint(constraint):
-    var = constraint.var
 
+def is_boolean_variable(b):
+    return b[0] is 'b'
+
+
+def is_boolean_value(b):
+    return b == 'true' or b == 'false'
+
+
+def is_boolean_constraint(s):
     # handle parenthesis.
-    var.replace('(','')
-    var.replace(')','')
+    s.replace('(','')
+    s.replace(')','')
 
     # handle negating operator.
-    if var.startswith('!'):
-        var = var[1:]
+    if s.startswith('!'):
+        s = s[1:]
 
-    is_boolean_constraint = var[0] is 'b'
-
-    return is_boolean_constraint
+    return s[0] is 'b'
 
 
 def to_boolean_constraint(constraint):
-    logger.debug("Generating z3 boolean for %s", constraint)
-    # neg = constraint.simple_neg
     var = constraint.var
     op  = constraint.op
     val = constraint.val
 
-    if not var.startswith('!'):
-        if op == '==' or op == '<==>':
-            if val == 'true' or val == '!false':
-                z3 = Bool(var) == True
-            else:
-                z3 = Bool(var) == False
-        else:
-            if val == 'true' or val == '!false':
-                z3 = Bool(var) != True
-            else:
-                z3 = Bool(var) != False
-    else:
-        var = var[1:]
-        if op == '==' or op == '<==>':
-            if val == 'true' or val == '!false':
-                z3 = Bool(var) != True
-            else:
-                z3 = Bool(var) != False
-        else:
-            if val == 'true' or val == '!false':
-                z3 = Bool(var) == True
-            else:
-                z3 = Bool(var) == False
+    logger.debug("Generating z3 boolean for %s", constraint)
 
-    logger.debug("-> %s", str(z3).replace('\n',' '))
+    if op == '==' or op == '<==>':
+        # variable and value
+        # variable and variable
+        # value and variable
+        if val == 'true' or val == '!false':
+            z3 = Bool(var) == True
+        else:
+            z3 = Bool(var) == False
+    else:
+        if val == 'true' or val == '!false':
+            z3 = Bool(var) != True
+        else:
+            z3 = Bool(var) != False
+
+    logger.debug("Generated z3 boolean constraint: %s", str(z3).replace('\n',' '))
 
     return z3
 
 
-def is_integer_constraint(constraint):
-    var = constraint.var
+def is_integer_variable(i):
+    return i[0] is 'i'
 
+
+def is_integer_value(i):
+    return not i.isdigit()
+
+
+def is_integer_constraint(s):
     # handle parenthesis.
-    var.replace('(', '')
-    var.replace(')', '')
+    s.replace('(', '')
+    s.replace(')', '')
 
     # handle negating operator.
-    if var.startswith('!'):
-        var = var[1:]
+    if s.startswith('!'):
+        s = s[1:]
 
-    is_integer_constraint = var[0] is 'i'
-
-    return is_integer_constraint
+    return s[0] is 'i'
 
 
 def to_integer_constraint(constraint):
-    logger.debug("Generating z3 integer constraints for %s", constraint)
-    # neg = constraint.simple_neg
     var = constraint.var
     op  = constraint.op
     val = constraint.val
 
-    if not var.startswith('!'):
-        if op == '==' or op == '<==>':
-            if val.isdigit():
-                z3 = Int(var) == int(val)
-            else:
-                z3 = Int(var) == Int(val)
-        else:
-            if val.isdigit():
-                z3 = Int(var) != int(val)
-            else:
-                z3 = Int(var) != Int(val)
-    else:
-        if op == '==' or op == '<==>':
-            if val.isdigit():
-                z3 = Int(var) != int(val)
-            else:
-                z3 = Int(var) != Int(val)
-        else:
-            if val.isdigit():
-                z3 = Int(var) == int(val)
-            else:
-                z3 = Int(var) == Int(val)
+    logger.info("Generating z3 integer constraints for %s", constraint)
 
-    logger.debug("-> %s", str(z3).replace('\n',' '))
+    if op == '==' or op == '<==>':
+        # variable and value
+        if (not var.isdigit()) and val.isdigit():
+            z3 = Int(var) == int(val)
+        # variable and variable
+        elif (not var.isdigit()) and (not val.isdigit()):
+            z3 = Int(var) == Int(val)
+        # value and variable
+        elif var.isdigit() and (not val.isdigit()):
+            z3 = int(var) == Int(val)
+        # otherwise
+        else:
+            raise Exception("cannot parse constraint!")
+    else:
+        # variable and value
+        if (not var.isdigit()) and val.isdigit():
+            z3 = Int(var) != int(val)
+        # variable and variable
+        elif (not var.isdigit()) and (not val.isdigit()):
+            z3 = Int(var) != Int(val)
+        # value and variable
+        elif var.isdigit() and (not val.isdigit()):
+            z3 = int(var) != Int(val)
+        # otherwise
+        else:
+            raise Exception("cannot parse constraint!")
+
+    logger.debug("Generated z3 integer constraint: %s", str(z3).replace('\n',' '))
 
     return z3

@@ -12,7 +12,5 @@ class Test:
         self.values  = values
 
     def __repr__(self):
-        origins = reduce(lambda x,y: str(x) + str(y), self.origins)
-
         return "%s(target:%s, origins:%s, values:%s)" % (
-            self.__class__.__name__, self.target, origins, self.values)
+            self.__class__.__name__, self.target, reduce(lambda x,y: str(x) + str(y), self.origins, ''), self.values)

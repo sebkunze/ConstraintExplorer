@@ -17,9 +17,14 @@ def main():
     parser.add_argument("-t", "--target", help="output target file.", default="out.yml")
 
     # adding mutually exclusive arguments.
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument("-v", "--verbose", action="store_true")
-    group.add_argument("-q", "--quit",    action="store_true", default=1)
+    group1 = parser.add_mutually_exclusive_group()
+    group1.add_argument("-v", "--verbose", action="store_true")
+    group1.add_argument("-q", "--quit",    action="store_true", default=1)
+
+    # adding mutually exclusive arguments.
+    group2 = parser.add_mutually_exclusive_group()
+    group2.add_argument("-a", "--analyse-states", action="store_true")
+    group2.add_argument("-c", "--compare-states", action="store_true", default=1)
 
     # populating parser.
     options = parser.parse_args()
@@ -27,17 +32,25 @@ def main():
     # fetching program variants.
     source_files = options.sources
 
-    # interpreting specified program variants.
-    programs = loader.load_programs(source_files)
-
-    # analysing programs' states.
-    tests = analyser.analyse_program_states(programs[0], programs[1])
-
     # fetching output directory.
     output_file = options.target
 
-    # exporting analysed programs' states.
-    dumper.dump(tests, output_file)
+    # interpreting specified program variants.
+    programs = loader.load_programs(source_files)
+
+    if options.analyse_states:
+        # analysing programs' states.
+        tests = analyser.analyse(programs)
+
+        # exporting analysed programs' states.
+        dumper.dump(tests, output_file)
+
+    elif options.compare_states:
+        # comparing programs' states.
+        tests = analyser.analyse_program_states(programs[0], programs[1])
+
+        # exporting analysed programs' states.
+        dumper.dump(tests, output_file)
 
 if __name__ == '__main__':
     main()
