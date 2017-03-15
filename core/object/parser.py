@@ -47,16 +47,20 @@ def to_conditions(symbooglix_state):
     # iterate constraints of terminated state
     for symbooglix_constraint in SymbooglixConstraintIterator(symbooglix_state):
         # retrieve information in "expr".
-        expr = symbooglix_constraint['expr']
+        constraint = symbooglix_constraint['expr']
 
-        # skip symbooglix constraints that are part of other symbooglix constraints, thus evaluating to true.
-        if expr == 'true':
+
+        if constraint == 'true':
+            # constraint = symbooglix_constraint['origin']
+            # constraint = constraint.split('[Cmd] assume {:partition}')[1]
+            # constraint = constraint.strip()
+            # constraint = constraint.replace(';','')
             continue
 
-        logger.debug("> Analysing symbooglix constraint: %s", expr)
+        logger.debug("> Analysing symbooglix constraint: %s", constraint)
 
         # split symbooglix constraints into its nested parts
-        has_negation_operator, symbooglix_nested_constraints = split_complex_constraint(expr)
+        has_negation_operator, symbooglix_nested_constraints = split_complex_constraint(constraint)
 
         # list of nested constraints.
         nested_constraints = []
@@ -84,8 +88,11 @@ def to_conditions(symbooglix_state):
             # add to nested constraint.
             nested_constraints.append(nested_constraint)
 
+        #
+        com = '' if len(nested_constraints) == 1 else '&&'
+
         # generate condition.
-        condition = Condition(has_negation_operator, '&&', nested_constraints)
+        condition = Condition(has_negation_operator, com, nested_constraints)
 
         logger.debug("> Generated condition: %s", condition)
 
@@ -127,6 +134,12 @@ def to_constraint(symbooglix_constraint):
     val = val.replace('~sb_','')
     val = val.replace('_0', '')
 
+    logger.info("Parsing to z3 constraint.%s", '')
+    logger.debug(">> var: %s", var)
+    logger.debug(">> op:  %s", op)
+    logger.debug(">> val: %s", val)
+
+
     if var.startswith('!'):
         constraint = Constraint(var[1:], neg(op), val)
     else:
@@ -149,6 +162,7 @@ def neg(op):
     elif op == '>=':
         op = '<'
     else:
+        print op
         raise Exception('cannot create negation of op')
 
     return op

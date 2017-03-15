@@ -1,6 +1,6 @@
-from yaml       import load_all
+from yaml        import load_all
 
-from core.object      import parser
+from core.object import parser
 
 def load_programs(paths):
     programs = []

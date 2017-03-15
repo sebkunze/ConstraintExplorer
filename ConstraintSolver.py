@@ -40,14 +40,14 @@ def main():
 
     if options.analyse_states:
         # analysing programs' states.
-        tests = analyser.analyse(programs)
+        tests = analyser.analyse_program_states(programs[0])
 
         # exporting analysed programs' states.
         dumper.dump(tests, output_file)
 
     elif options.compare_states:
         # comparing programs' states.
-        tests = analyser.analyse_program_states(programs[0], programs[1])
+        tests = analyser.compare_program_states(programs[0], programs[1])
 
         # exporting analysed programs' states.
         dumper.dump(tests, output_file)
