@@ -20,6 +20,11 @@ def to_program(terminated_symbooglix_states):
         # retrieve conditions.
         conditions = to_conditions(symbooglix_state)
 
+        logger.info("Looking up state's effects.%s",'')
+
+        # retrieve effects.
+        effects = to_effects(symbooglix_state)
+
         logger.info("Extracting state's trace.%s", '')
 
         # retrieve trace.
@@ -28,7 +33,7 @@ def to_program(terminated_symbooglix_states):
         logger.info("Combining state's information.%s", '')
 
         # create symbolic state
-        state = SymbolicState(id, conditions, trace)
+        state = SymbolicState(id, conditions, effects, trace)
 
         logger.info("Adding state's information to program.%s", '')
 
@@ -37,8 +42,10 @@ def to_program(terminated_symbooglix_states):
 
     return program
 
+
 def to_id(symbooglix_state):
     return symbooglix_state.state_id
+
 
 def to_conditions(symbooglix_state):
     # list of conditions.
@@ -51,11 +58,10 @@ def to_conditions(symbooglix_state):
 
 
         if constraint == 'true':
-            # constraint = symbooglix_constraint['origin']
-            # constraint = constraint.split('[Cmd] assume {:partition}')[1]
-            # constraint = constraint.strip()
-            # constraint = constraint.replace(';','')
-            continue
+            constraint = symbooglix_constraint['origin']
+            constraint = constraint.split('[Cmd] assume {:partition}')[1]
+            constraint = constraint.strip()
+            constraint = constraint.replace(';','')
 
         logger.debug("> Analysing symbooglix constraint: %s", constraint)
 
@@ -100,6 +106,39 @@ def to_conditions(symbooglix_state):
         conditions.append(condition)
 
     return conditions
+
+
+def to_effects(symbooglix_state):
+    # list of conditions.
+    effects = []
+
+    # iterate constraints of terminated state
+    if symbooglix_state.memory['globals'].has_key('intHeap') \
+            and not symbooglix_state.memory['globals']['intHeap']['expr'] == "~sb_intHeap_0":
+        effect = symbooglix_state.memory['globals']['intHeap']['expr']
+        effect = effect .replace('~sb_','')
+        effect = effect .replace('_0', '')
+
+        effects.append(effect)
+
+    if symbooglix_state.memory['globals'].has_key('boolHeap') \
+            and not symbooglix_state.memory['globals']['boolHeap']['expr'] == "~sb_boolHeap_0":
+        effect = symbooglix_state.memory['globals']['boolHeap']['expr']
+        effect = effect.replace('~sb_', '')
+        effect = effect.replace('_0', '')
+
+        effects.append(effect)
+
+
+    if symbooglix_state.memory['globals'].has_key('objHeap') \
+            and not symbooglix_state.memory['globals']['objHeap']['expr'] == "~sb_objHeap_0":
+        effect = symbooglix_state.memory['globals']['objHeap']['expr']
+        effect = effect.replace('~sb_', '')
+        effect = effect.replace('_0', '')
+
+        effects.append(effect)
+
+    return effects
 
 
 def split_complex_constraint(expr):

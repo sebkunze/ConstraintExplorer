@@ -1,6 +1,6 @@
 from z3 import Bool, Int, And, Implies, Not, Solver, sat
 
-from core.object.data.test import TestInfo, TestInstance, AssertionType
+from core.object.data.test import TestInfo, TestInstance
 from core.utils            import logger
 
 
@@ -9,47 +9,49 @@ def analyse_program_states(program):
 
     for state in program.states:
         # generate satisfying values.
-        values = gen_satisfying_values(state)
+        values = gen_satisfying_values_for_state(state)
 
         # store test information.
-        tests.append(TestInfo(state, [], values))
+        tests.append(TestInfo("CREATE", state, [], values))
 
     return tests
 
 
 def compare_program_states(to_be_tested_program, already_tested_program):
-    tests = []
+    states = []
 
     for to_be_tested_state in to_be_tested_program.states:
-
-        logger.info("Inspecting symbolic state %s", to_be_tested_state.id)
+        logger.info("Inspecting symbolic state %s", to_be_tested_state.identifier)
 
         equivalent_states = \
             find_equivalent_states(to_be_tested_state, already_tested_program.states)
 
         if equivalent_states:
-            logger.debug("Found %s equivalent state(s).", len(equivalent_states))
-
-            continue
-        else:
-            logger.debug("Found no equivalent states.%s", '')
+            logger.debug("Found %s equivalent state(s) to skip.", len(equivalent_states))
 
             test_instances = \
                 gen_test_instances(to_be_tested_state, already_tested_program.states)
 
-            logger.debug("Found %s test instance(s).", len(test_instances))
+            info = TestInfo("SKIP", to_be_tested_state, test_instances, [])
+
+            states.append(info)
+        else:
+            test_instances = \
+                gen_test_instances(to_be_tested_state, already_tested_program.states)
+
+            logger.debug("Found %s test instance(s) to reuse.", len(test_instances))
 
             values = \
-                gen_satisfying_values(to_be_tested_state)
+                gen_satisfying_values_for_state(to_be_tested_state)
 
-            logger.debug("Generated list of satisfying values.%s", '')
+            trajectory = "ADJUST" if test_instances else "CREATE"
 
             info = \
-                TestInfo(to_be_tested_state, test_instances, values)
+                TestInfo(trajectory, to_be_tested_state, test_instances, values)
 
-            tests.append(info)
+            states.append(info)
 
-    return tests
+    return states
 
 
 def gen_test_instances(to_be_tested_state, already_tested_states):
@@ -58,41 +60,16 @@ def gen_test_instances(to_be_tested_state, already_tested_states):
 
     instances = []
     for overlapping_state in overlapping_states:
-        assertion_conditions, assertion_type = gen_assertions(to_be_tested_state, overlapping_state)
-        instances.append(TestInstance(assertion_conditions, assertion_type, overlapping_state))
+        values = gen_satisfying_values_for_states([to_be_tested_state] + [overlapping_state])
+
+        instances.append(TestInstance(overlapping_state, values))
 
     return instances
-
-
-def gen_assertions(to_be_tested_state, overlapping_state):
-    assertion_coditions = list(set(to_be_tested_state.conditions) - set(overlapping_state.conditions))
-
-    if len(assertion_coditions) > 0:
-        return assertion_coditions, 'ADD' # AssertionType.ADD
-
-    assertion_coditions= list(set(overlapping_state.conditions) - set(to_be_tested_state.conditions))
-
-    if len(assertion_coditions) > 0:
-        return assertion_coditions, 'REMOVE' # AssertionType.REMOVE
-
-    return [], 'NONE' # AssertionType.NONE
 
 
 def find_overlapping_states(to_be_tested_state, already_tested_states):
     # find source state s in list of target states t.
     return [already_tested_state for already_tested_state in already_tested_states if is_overlapping_state(to_be_tested_state, already_tested_state)]
-
-    # overlapping_states = []
-    #
-    # for already_tested_state in already_tested_states:
-    #     if not is_overlapping_state(to_be_tested_state, already_tested_state):
-    #         continue
-    #
-    #     already_tested_state.assertions = list(set(to_be_tested_state.conditions) - set(already_tested_state.conditions))
-    #
-    #     overlapping_states.append(already_tested_state)
-    #
-    # return overlapping_states
 
 
 def is_overlapping_state(state_x, state_y):
@@ -143,20 +120,43 @@ def to_z3(constraint): # TODO: Change method name!
         raise Exception("type not supported.")
 
 
-def gen_satisfying_values(symbolic_state):
+def gen_satisfying_values_for_state(symbolic_state):
     s = Solver()
 
-    logger.info("Generating satisfying values for symbolic state %s.", symbolic_state.id)
+    logger.info("Generating satisfying values for symbolic states %s.", symbolic_state.identifier)
 
     for condition in symbolic_state.conditions:
         s.add(to_z3_constraint(condition))
 
-    model = ''
+    values = []
 
     if s.check() == sat:
-        model = str(s.model()).replace('\n', '')
+        values = model_to_list(s.model())
 
-    return model
+    return values
+
+
+def gen_satisfying_values_for_states(symbolic_states):
+    s = Solver()
+
+    logger.info("Generating satisfying values for symbolic states %s.", reduce(lambda x,y: x + str(y) + ", ", [state.identifier for state in symbolic_states], ""))
+
+    for symbolic_state in symbolic_states:
+        for condition in symbolic_state.conditions:
+            s.add(to_z3_constraint(condition))
+
+    values = []
+
+    if s.check() == sat:
+        values = model_to_list(s.model())
+
+    return values
+
+
+def model_to_list(model):
+    # FIXME: This is terrible! It seems like z3 inserts randomly \n characters when it is parsed to a string representation. Thus, we replace these characters and create a list.
+    values = [v.strip() for v in (str(model).replace('\n', ''))[1:-1].split(',')]
+    return values
 
 
 def find_assertions(symbolic_state, overlapping_states):
