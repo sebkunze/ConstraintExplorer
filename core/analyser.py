@@ -90,7 +90,8 @@ def find_equivalent_states(state_s, states_t):
 
 
 def is_equivalent_state(state_s, state_t):
-    return True if set(state_s.conditions) == set(state_t.conditions) else False
+    return set(state_s.conditions) == set(state_t.conditions) \
+            and set(state_s.effects) == set(state_t.effects)
 
 
 def to_z3_constraint(condition): # TODO: Change method name!
