@@ -58,10 +58,11 @@ def to_conditions(symbooglix_state):
 
 
         if constraint == 'true':
-            constraint = symbooglix_constraint['origin']
-            constraint = constraint.split('[Cmd] assume {:partition}')[1]
-            constraint = constraint.strip()
-            constraint = constraint.replace(';','')
+            # constraint = symbooglix_constraint['origin']
+            # constraint = constraint.split('[Cmd] assume {:partition}')[1]
+            # constraint = constraint.strip()
+            # constraint = constraint.replace(';','')
+            continue
 
         logger.debug("> Analysing symbooglix constraint: %s", constraint)
 

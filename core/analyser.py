@@ -90,6 +90,7 @@ def find_equivalent_states(state_s, states_t):
 
 
 def is_equivalent_state(state_s, state_t):
+    # compare state s' conditions and effects to those of state t.
     return set(state_s.conditions) == set(state_t.conditions) \
             and set(state_s.effects) == set(state_t.effects)
 
