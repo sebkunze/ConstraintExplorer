@@ -143,15 +143,22 @@ def to_effects(symbooglix_state):
 
 
 def split_complex_constraint(expr):
-    delimiters = '&&'
+    logger.debug(">> Splitting complex symbooglix constraint.%s", '')
 
-    has_negation_operator = True if delimiters in expr and expr.startswith('!(') else False
+    has_negation_operator = False;
 
-    if has_negation_operator:
+    if expr.startswith('!('):
         expr = expr[2:-1]
+    elif expr.startswith('!'):
+        expr = expr[1:]
 
+    logger.debug(">>> Complex symbooglix constraint has negation: %s", has_negation_operator)
+
+    delimiters = "&&", "||"
     pattern = '|'.join(map(re.escape, delimiters))
     constraints = re.split(pattern, expr)
+
+    logger.debug(">>> Complex symbooglix constraints: %s", constraints)
 
     return has_negation_operator, constraints
 
@@ -162,22 +169,29 @@ def split(string, *delimiters):
 
 
 def to_constraint(symbooglix_constraint):
-    c = symbooglix_constraint.split()
+    logger.debug(">>> Splitting constraint: %s", symbooglix_constraint)
 
-    var = c[0]
-    op  = c[1] if len(c) > 1 else '=='
-    val = c[2] if len(c) > 2 else 'true'
+    delimiters = "(==)", "(!=)", "(>=)", "(<=)", "(>)", "(<)"
+    pattern = '|'.join(delimiters)
+    c = re.split(pattern, symbooglix_constraint)
+    c = filter(lambda x: x is not None, c)
 
-    # TODO: Find better solution to handle symbooglix prefixes.
+    logger.debug(">>> Split constraint: %s", c)
+
+    var = c[0].strip()
+    op  = c[1].strip() if len(c) > 1 else '=='
+    val = c[2].strip() if len(c) > 2 else 'true'
+
     var = var.replace('~sb_','')
     var = var.replace('_0', '')
+
     val = val.replace('~sb_','')
     val = val.replace('_0', '')
 
-    logger.info("Parsing to z3 constraint.%s", '')
-    logger.debug(">> var: %s", var)
-    logger.debug(">> op:  %s", op)
-    logger.debug(">> val: %s", val)
+    logger.debug(">>> Split to z3 atoms.%s", '')
+    logger.debug(">>>> var: %s", var)
+    logger.debug(">>>> op:  %s", op)
+    logger.debug(">>>> val: %s", val)
 
 
     if var.startswith('!'):

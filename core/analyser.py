@@ -118,7 +118,11 @@ def to_z3(constraint): # TODO: Change method name!
     elif is_integer_constraint(constraint.var) \
             or is_integer_constraint(constraint.val):
         return to_z3_integer_constraint(constraint)
+    elif is_object_constraint(constraint.var) \
+            or is_object_constraint(constraint.val):
+        return to_z3_object_constraint(constraint)
     else:
+        logger.error("type not supported: %s", constraint)
         raise Exception("type not supported.")
 
 
@@ -226,16 +230,31 @@ def is_integer_value(i):
     return not i.isdigit()
 
 
-def is_integer_constraint(s):
+def is_integer_constraint(c):
     # handle parenthesis.
-    s.replace('(', '')
-    s.replace(')', '')
+    c.replace('(', '')
+    c.replace(')', '')
 
     # handle negating operator.
-    if s.startswith('!'):
-        s = s[1:]
+    if c.startswith('!'):
+        c = c[1:]
 
-    return s[0] is 'i'
+    if c.startswith("i"):
+        return True
+    elif c.endswith("$size"):
+        return True
+    elif c.isdigit():
+        return False
+    else:
+        # some symbooglix constraint refer to operations like '1 + intHeap[obj][field] > 0'
+
+        logger.debug("Breaking down constraint %s.", c)
+
+        s = c.split()
+        if len(s) == 3:
+            return True
+        else:
+            return False
 
 
 def to_z3_integer_constraint(constraint):
@@ -323,6 +342,49 @@ def to_z3_integer_constraint(constraint):
         # otherwise
         else:
             raise Exception("cannot parse constraint!")
+
+    logger.debug("Generated z3 integer constraint: %s", str(z3).replace('\n',' '))
+
+    return z3
+
+def is_object_constraint(s):
+    # handle parenthesis.
+    s.replace('(','')
+    s.replace(')','')
+
+    # handle negating operator.
+    if s.startswith('!'):
+        s = s[1:]
+
+    return s[0] is 'o'
+
+def to_z3_object_constraint(constraint):
+    var = constraint.var
+    op  = constraint.op
+    val = constraint.val
+
+    logger.info("Generating z3 integer constraints for %s", constraint)
+
+    if op == '==':
+        if var == "null" and val != "null":
+            z3 = Int(var) == int(0)
+        elif var != "null" and val == "null":
+            z3 = int(0) == Int(val)
+        elif var != "null" and val != "null":
+            z3 = Int(var) == Int(val)
+        else:
+            raise Exception("cannot parse constraint!")
+    elif op == '!=':
+        if var == "null" and val != "null":
+            z3 = Int(var) != int(0)
+        elif var != "null" and val == "null":
+            z3 = int(0) != Int(val)
+        elif var != "null" and val != "null":
+            z3 = Int(var) != Int(val)
+        else:
+            raise Exception("cannot parse constraint!")
+    else:
+        raise Exception("cannot parse constraint!")
 
     logger.debug("Generated z3 integer constraint: %s", str(z3).replace('\n',' '))
 
