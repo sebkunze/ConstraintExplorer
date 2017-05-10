@@ -64,10 +64,10 @@ def to_conditions(symbooglix_state):
             # constraint = constraint.replace(';','')
             continue
 
-        logger.debug("> Analysing symbooglix constraint: %s", constraint)
+        logger.info("> Analysing symbooglix constraint: %s", constraint)
 
         # split symbooglix constraints into its nested parts
-        has_negation_operator, symbooglix_nested_constraints = split_complex_constraint(constraint)
+        has_negation_operator, has_logic_operator, symbooglix_nested_constraints = split_complex_constraint(constraint)
 
         # list of nested constraints.
         nested_constraints = []
@@ -95,13 +95,10 @@ def to_conditions(symbooglix_state):
             # add to nested constraint.
             nested_constraints.append(nested_constraint)
 
-        #
-        com = '' if len(nested_constraints) == 1 else '&&'
-
         # generate condition.
-        condition = Condition(has_negation_operator, com, nested_constraints)
+        condition = Condition(has_negation_operator, has_logic_operator, nested_constraints)
 
-        logger.debug("> Generated condition: %s", condition)
+        logger.info("> Generated condition: %s", condition)
 
         # add to collected conditions.
         conditions.append(condition)
@@ -143,24 +140,47 @@ def to_effects(symbooglix_state):
 
 
 def split_complex_constraint(expr):
-    logger.debug(">> Splitting complex symbooglix constraint.%s", '')
+    logger.debug(">> Splitting complex symbooglix constraint: %s", expr)
 
     has_negation_operator = False;
 
     if expr.startswith('!('):
+        has_negation_operator = True
+
         expr = expr[2:-1]
     elif expr.startswith('!'):
+        has_negation_operator = True
+
         expr = expr[1:]
 
     logger.debug(">>> Complex symbooglix constraint has negation: %s", has_negation_operator)
 
-    delimiters = "&&", "||"
-    pattern = '|'.join(map(re.escape, delimiters))
-    constraints = re.split(pattern, expr)
+    has_logic_operator = None
+
+    if "&&" in expr:
+        delimiters = "&&"
+        pattern = '|'.join(map(re.escape, delimiters))
+        constraints = re.split(pattern, expr)
+
+        has_logic_operator = "&&"
+
+        logger.debug(">>> Complex symbooglix constraint has && operator: %s", True)
+
+    if "||" in expr:
+        delimiters = "||"
+        pattern = '|'.join(map(re.escape, delimiters))
+        constraints = re.split(pattern, expr)
+
+        has_logic_operator = "||"
+
+        logger.debug(">>> Complex symbooglix constraint has || operator: %s", True)
+
+    if has_logic_operator is None:
+        constraints = [expr]
 
     logger.debug(">>> Complex symbooglix constraints: %s", constraints)
 
-    return has_negation_operator, constraints
+    return has_negation_operator, has_logic_operator, constraints
 
 
 def split(string, *delimiters):
@@ -169,7 +189,7 @@ def split(string, *delimiters):
 
 
 def to_constraint(symbooglix_constraint):
-    logger.debug(">>> Splitting constraint: %s", symbooglix_constraint)
+    logger.debug(">>> Checking constraint: %s", symbooglix_constraint)
 
     delimiters = "(==)", "(!=)", "(>=)", "(<=)", "(>)", "(<)"
     pattern = '|'.join(delimiters)

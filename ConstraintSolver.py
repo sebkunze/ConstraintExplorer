@@ -1,8 +1,11 @@
 #!/usr/bin/env python
+import os
+
 from argparse       import ArgumentParser
 
 from core           import analyser
 from core.io        import loader, dumper
+from core.utils     import report
 
 VERSION = '0.1'
 
@@ -39,7 +42,7 @@ def main():
     programs = loader.load_programs(source_files)
 
     if options.analyse_states:
-        # analysing programs' states.
+        # analysing programs' states
         tests = analyser.analyse_program_states(programs[0])
 
         # exporting analysed programs' states.
@@ -51,6 +54,13 @@ def main():
 
         # exporting analysed programs' states.
         dumper.dump(states, output_file)
+
+    # get path to output file's directory.
+    dir, file = os.path.split(output_file)
+    base = file.split(".")[0]
+    path = os.path.join(dir, (base + ".json"))
+
+    report.dump(path)
 
 if __name__ == '__main__':
     main()

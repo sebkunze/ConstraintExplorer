@@ -1,7 +1,7 @@
-from z3 import Bool, Int, And, Implies, Not, Solver, sat
+from z3 import Bool, Int, And, Or, Implies, Not, Solver, sat
 
 from core.object.data.test import TestInfo, TestInstance
-from core.utils            import logger
+from core.utils            import logger, report
 
 
 def analyse_program_states(program):
@@ -13,6 +13,8 @@ def analyse_program_states(program):
 
         # store test information.
         tests.append(TestInfo("CREATE", state, [], values))
+
+        report.to_be_created_test()
 
     return tests
 
@@ -34,6 +36,8 @@ def compare_program_states(to_be_tested_program, already_tested_program):
 
             info = TestInfo("SKIP", to_be_tested_state, test_instances, [])
 
+            report.to_be_skipped_test()
+
             states.append(info)
         else:
             test_instances = \
@@ -44,7 +48,15 @@ def compare_program_states(to_be_tested_program, already_tested_program):
             values = \
                 gen_satisfying_values_for_state(to_be_tested_state)
 
-            trajectory = "ADJUST" if test_instances else "CREATE"
+            if test_instances:
+                trajectory = "ADJUST"
+
+                report.to_be_adjusted_test()
+
+            else:
+                trajectory = "CREATE"
+
+                report.to_be_created_test()
 
             info = \
                 TestInfo(trajectory, to_be_tested_state, test_instances, values)
@@ -102,8 +114,12 @@ def to_z3_constraint(condition): # TODO: Change method name!
     for c in constraints:
         if x is None:
             x = c
+        elif condition.com == "&&":
+                x = And(x, c)
+        elif condition.com == "||":
+                x = Or(x, c)
         else:
-            x = And(x, c)
+            logger.error("Missing logical combinator in condition: %s", condition)
 
     if condition.neg:
         x = Not(x)
