@@ -107,36 +107,242 @@ def to_conditions(symbooglix_state):
 
 
 def to_effects(symbooglix_state):
-    # list of conditions.
     effects = []
 
-    # iterate constraints of terminated state
-    if symbooglix_state.memory['globals'].has_key('intHeap') \
-            and not symbooglix_state.memory['globals']['intHeap']['expr'] == "~sb_intHeap_0":
-        effect = symbooglix_state.memory['globals']['intHeap']['expr']
-        effect = effect .replace('~sb_','')
-        effect = effect .replace('_0', '')
-
-        effects.append(effect)
-
+    # check if booHeap information is empty.
     if symbooglix_state.memory['globals'].has_key('boolHeap') \
             and not symbooglix_state.memory['globals']['boolHeap']['expr'] == "~sb_boolHeap_0":
+
+        # retrieve booHap information.
         effect = symbooglix_state.memory['globals']['boolHeap']['expr']
+
+        # clean information by removing symbolic prefix and symbolic suffix.
         effect = effect.replace('~sb_', '')
         effect = effect.replace('_0', '')
 
+        # parse effects.
+        effect = parse_heap(effect)
+
+        # append to effect memory.
         effects.append(effect)
 
+    # check if intHeap information is empty.
+    if symbooglix_state.memory['globals'].has_key('intHeap') \
+            and not symbooglix_state.memory['globals']['intHeap']['expr'] == "~sb_intHeap_0":
 
+        # retrieve intHeap information.
+        effect = symbooglix_state.memory['globals']['intHeap']['expr']
+
+        # clean information by removing symbolic prefix and symbolic suffix.
+        effect = effect.replace('~sb_','')
+        effect = effect.replace('_0', '')
+
+        # parse effects.
+        effect = parse_heap(effect)
+
+        # append to effect summary.
+        effects.append(effect)
+
+    # check if objHeap information is empty.
     if symbooglix_state.memory['globals'].has_key('objHeap') \
             and not symbooglix_state.memory['globals']['objHeap']['expr'] == "~sb_objHeap_0":
+
+        # retrieve obHeap information.
         effect = symbooglix_state.memory['globals']['objHeap']['expr']
+
+        # clean information by removing symbolic prefix and symbolic suffix.
         effect = effect.replace('~sb_', '')
         effect = effect.replace('_0', '')
 
+        # parse effects.
+        effect = parse_heap(effect)
+
+        # append to effect summary.
         effects.append(effect)
 
     return effects
+
+
+def parse_heap(string):
+    try:
+        effect = unpack_heap(string)
+    except Exception:
+        effect = string
+
+    return effect
+
+
+def unpack_heap(string):
+
+    logger.info("Analysing heap information: %s", string)
+
+    # e.g. heap[obj := heap[obj][field][field]]
+    if check_if_nested_heap_access(string):
+
+        # retrieve the nested information.
+        # TODO: Refactor!
+        # TODO: Add check that left-hand side is not a heap access itself.
+        _, obj, _   = parse_to_heap_access(string)
+        _, _, right = parse_to_assignment(obj)
+
+        logger.debug("Unpacked nested heap information: %s", right)
+
+        return unpack_heap(right)
+
+    # e.g. heap[obj][field][field]
+    if check_if_heap_access(string):
+
+        # retrieve heap information.
+        heap, obj, fields = parse_to_heap_access(string)
+
+        logger.debug("Unpacked heap type information: %s", heap)
+        logger.debug("Unpacked object information: %s", obj)
+        logger.debug("Unpacked fields information: %s", str(fields))
+
+        # continue unpacking obj.
+        obj = unpack_heap(obj)
+
+        # continue unpacking fields.
+        fs = []
+        for f in fields:
+            field = unpack_heap(f)
+            fs.append(field)
+
+        # combine unpacked information.
+        return heap + "[" + obj + "]" + reduce(lambda x,y: x + "[" + y + "]",fields,"")
+
+    return string
+
+
+def parse_to_heap_access(string):
+
+    # retrieve heap information.
+    heap = string.split("[",1)[0]
+
+    # retrieve object information.
+    obj = parse_string_in_first_parenthesis(string)
+
+    # cut object information.
+    string = ''.join(string.split(heap + "[" + obj + "]",1)[1:])
+
+    # array of fields.
+    fields = []
+
+    # cut field information.
+    field = parse_string_in_first_parenthesis(string)
+
+    while field is not '':
+        # append field information
+        fields.append(field)
+
+        # cut next field information
+        string = ''.join(string.split("[" + field + "]",1)[1:])
+
+        # parse field information
+        field = parse_string_in_first_parenthesis(string)
+
+    # return heap access
+    return heap, obj, fields
+
+
+def parse_to_assignment(string):
+    stack = []
+
+    left = []
+
+    # find left-hand side of assignment
+    for c in string:
+
+        # no opening bracket and beginning of assignment.
+        if not stack and c == ':':
+            break;
+
+        # push opening bracket to memory.
+        if c == "[":
+            stack.append(c)
+
+        # pop opening bracket from memory.
+        if c == "]":
+            stack.pop()
+
+        # append char to variable.
+        left.append(c)
+
+    # cast char array to string.
+    left = ''.join(left)
+
+    right = ""
+
+    # find right-hand side of assignment
+    if left is not '':
+        right = string.split(left,1)[1]
+        right = right[3:]
+        left = left[:-1]
+
+    return left, "", right
+
+
+def parse_string_in_first_parenthesis(string):
+    stack = []
+
+    s = []
+    for c in string:
+        if c == "[" and len(stack) is 0:
+            stack.append(c)
+        elif c == "[" and len(stack) > 0:
+            s.append(c)
+            stack.append(c)
+        elif c == "]" and len(stack) is 0:
+            return ""
+        elif c == "]" and len(stack) is 1:
+            break;
+        elif c == "]":
+            s.append(c)
+            stack.pop()
+        elif stack:
+            s.append(c)
+
+    return ''.join(s)
+
+
+def check_if_heap_access(string):
+    heap, obj, field = parse_to_heap_access(string)
+
+    if heap.startswith("boolHeap") \
+            or heap.startswith("intHeap") \
+            or heap.startswith("objHeap"):
+
+        return True if obj and field else False
+
+    return False
+
+
+def check_if_nested_heap_access(string):
+    heap, obj, fields = parse_to_heap_access(string)
+
+    if heap.startswith("boolHeap") \
+            or heap.startswith("intHeap") \
+            or heap.startswith("objHeap"):
+
+        if not fields == []:
+            return False
+
+        left, _, right = parse_to_assignment(obj)
+
+        if right.startswith("boolHeap") \
+                or right.startswith("intHeap") \
+                or right.startswith("objHeap"):
+
+            return True
+
+    return False
+
+
+def check_if_assignment(string):
+    left, _, right = parse_to_assignment(string)
+
+    return True if left and right else False
+
 
 
 def split_complex_constraint(expr):

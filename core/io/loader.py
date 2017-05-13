@@ -7,7 +7,9 @@ def load_programs(paths):
 
     for path in paths:
         terminated_symbooglix_states = read_terminated_symbooglix_states(path)
+
         translated_program = parser.to_program(terminated_symbooglix_states)
+
         programs.append(translated_program)
 
     return programs

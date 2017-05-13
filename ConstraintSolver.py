@@ -22,7 +22,7 @@ def main():
     # adding mutually exclusive arguments.
     group1 = parser.add_mutually_exclusive_group()
     group1.add_argument("-v", "--verbose", action="store_true")
-    group1.add_argument("-q", "--quit",    action="store_true", default=1)
+    group1.add_argument("-q", "--quiet",    action="store_true", default=1)
 
     # adding mutually exclusive arguments.
     group2 = parser.add_mutually_exclusive_group()

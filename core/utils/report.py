@@ -1,7 +1,7 @@
 import json
 import os
 
-data = {"SKIP" : 0, "ADJUST" : 0, "CREATE" : 0}
+data = {"CREATE" : 0, "SKIP" : 0, "ADJUST" : 0}
 
 def to_be_skipped_test():
     data['SKIP'] += 1
