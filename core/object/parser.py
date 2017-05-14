@@ -53,9 +53,9 @@ def to_conditions(symbooglix_state):
 
     # iterate constraints of terminated state
     for symbooglix_constraint in SymbooglixConstraintIterator(symbooglix_state):
+
         # retrieve information in "expr".
         constraint = symbooglix_constraint['expr']
-
 
         if constraint == 'true':
             # constraint = symbooglix_constraint['origin']
@@ -67,7 +67,8 @@ def to_conditions(symbooglix_state):
         logger.info("> Analysing symbooglix constraint: %s", constraint)
 
         # split symbooglix constraints into its nested parts
-        has_negation_operator, has_logic_operator, symbooglix_nested_constraints = split_complex_constraint(constraint)
+        has_negation_operator, has_logic_operator, symbooglix_nested_constraints = \
+            split_complex_constraint(constraint)
 
         # list of nested constraints.
         nested_constraints = []
@@ -167,6 +168,7 @@ def parse_heap(string):
     try:
         effect = unpack_heap(string)
     except Exception:
+
         effect = string
 
     return effect
@@ -312,7 +314,7 @@ def check_if_heap_access(string):
             or heap.startswith("intHeap") \
             or heap.startswith("objHeap"):
 
-        return True if obj and field else False
+        return True if not obj == '' and not field == [] else False
 
     return False
 
