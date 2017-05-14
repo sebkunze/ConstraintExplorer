@@ -54,7 +54,14 @@ def to_conditions(symbooglix_state):
     # iterate constraints of terminated state
     for symbooglix_constraint in SymbooglixConstraintIterator(symbooglix_state):
 
-        # retrieve information in "expr".
+        # retrieve information in 'origin'.
+        origin = symbooglix_constraint['origin']
+
+        # skip analysing constraints tagged as 'axiom' and 'requires'.
+        if origin.startswith("[Axiom]") or origin.startswith("[Requires]"):
+            continue
+
+        # retrieve information in 'expr'.
         constraint = symbooglix_constraint['expr']
 
         if constraint == 'true':
@@ -118,11 +125,10 @@ def to_effects(symbooglix_state):
         effect = symbooglix_state.memory['globals']['boolHeap']['expr']
 
         # clean information by removing symbolic prefix and symbolic suffix.
-        effect = effect.replace('~sb_', '')
-        effect = effect.replace('_0', '')
+        effect = remove_symbolic_prefix_and_suffix(effect)
 
         # parse effects.
-        effect = parse_heap(effect)
+        # effect = parse_heap(effect)
 
         # append to effect memory.
         effects.append(effect)
@@ -135,11 +141,10 @@ def to_effects(symbooglix_state):
         effect = symbooglix_state.memory['globals']['intHeap']['expr']
 
         # clean information by removing symbolic prefix and symbolic suffix.
-        effect = effect.replace('~sb_','')
-        effect = effect.replace('_0', '')
+        effect = remove_symbolic_prefix_and_suffix(effect)
 
         # parse effects.
-        effect = parse_heap(effect)
+        # effect = parse_heap(effect)
 
         # append to effect summary.
         effects.append(effect)
@@ -152,16 +157,23 @@ def to_effects(symbooglix_state):
         effect = symbooglix_state.memory['globals']['objHeap']['expr']
 
         # clean information by removing symbolic prefix and symbolic suffix.
-        effect = effect.replace('~sb_', '')
-        effect = effect.replace('_0', '')
+        effect = remove_symbolic_prefix_and_suffix(effect)
 
         # parse effects.
-        effect = parse_heap(effect)
+        # effect = parse_heap(effect)
 
         # append to effect summary.
         effects.append(effect)
 
     return effects
+
+
+def remove_symbolic_prefix_and_suffix(string):
+
+    string = string.replace('~sb_', '')
+    string = string.replace('_0', '')
+
+    return string
 
 
 def parse_heap(string):

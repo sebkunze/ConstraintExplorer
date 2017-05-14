@@ -116,7 +116,7 @@ def is_equivalent_state(state_s, state_t):
 
 
 def to_z3_constraint(condition): # TODO: Change method name!
-    constraints = map(lambda c: to_z3(c), condition.cons)
+    constraints = map(lambda c: parse_to_z3_object(c), condition.cons)
 
     x = None
     for c in constraints:
@@ -135,9 +135,9 @@ def to_z3_constraint(condition): # TODO: Change method name!
     return x
 
 
-def to_z3(constraint): # TODO: Change method name!
+def parse_to_z3_object(constraint):
 
-    # unpack variables, e.g., 'MyClass.field' or 'someMethod.variable'
+    # unpack variables, e.g., 'heap[this][MyClass.field]' or 'someMethod.variable'
     var = unpack_variable_name(constraint.var)
     val = unpack_variable_name(constraint.val)
 
@@ -162,6 +162,15 @@ def to_z3(constraint): # TODO: Change method name!
 
 
 def unpack_variable_name(string):
+
+    # ignore fields.
+    if string.startswith("boolHeap") \
+        or string.startswith("intHeap") \
+        or string.startswith("objHeap"):
+
+        return string
+
+
     return string.rsplit(".",1)[-1]
 
 
@@ -215,12 +224,12 @@ def find_assertions(symbolic_state, overlapping_states):
     return assertions
 
 
-def is_boolean_variable(b):
-    return b[0] is 'b'
-
-
-def is_boolean_value(b):
-    return b == 'true' or b == 'false'
+# def is_boolean_variable(b):
+#     return b[0] is 'b'
+#
+#
+# def is_boolean_value(b):
+#     return b == 'true' or b == 'false'
 
 
 def is_boolean_constraint(s):
@@ -261,12 +270,12 @@ def to_z3_boolean_constraint(constraint):
     return z3
 
 
-def is_integer_variable(i):
-    return i[0] is 'i'
-
-
-def is_integer_value(i):
-    return not i.isdigit()
+# def is_integer_variable(i):
+#     return i[0] is 'i'
+#
+#
+# def is_integer_value(i):
+#     return not i.isdigit()
 
 
 def is_integer_constraint(c):
