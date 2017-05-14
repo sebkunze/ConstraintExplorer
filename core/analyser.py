@@ -136,18 +136,33 @@ def to_z3_constraint(condition): # TODO: Change method name!
 
 
 def to_z3(constraint): # TODO: Change method name!
-    if is_boolean_constraint(constraint.var) \
-            or is_boolean_constraint(constraint.val):
+
+    # unpack variables, e.g., 'MyClass.field' or 'someMethod.variable'
+    var = unpack_variable_name(constraint.var)
+    val = unpack_variable_name(constraint.val)
+
+    if is_boolean_constraint(var) \
+            or is_boolean_constraint(val):
+
         return to_z3_boolean_constraint(constraint)
-    elif is_integer_constraint(constraint.var) \
-            or is_integer_constraint(constraint.val):
+
+    elif is_integer_constraint(var) \
+            or is_integer_constraint(val):
+
         return to_z3_integer_constraint(constraint)
-    elif is_object_constraint(constraint.var) \
+
+    elif is_object_constraint(var) \
             or is_object_constraint(constraint.val):
+
         return to_z3_object_constraint(constraint)
+
     else:
-        logger.error("type not supported: %s", constraint)
+        logger.error("Type of constraint not supported: %s", constraint)
         raise Exception("type not supported.")
+
+
+def unpack_variable_name(string):
+    return string.rsplit(".",1)[-1]
 
 
 def gen_satisfying_values_for_state(symbolic_state):
