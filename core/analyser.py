@@ -289,7 +289,7 @@ def is_integer_constraint(c):
 
     if c.startswith("i"):
         return True
-    elif c.endswith("$size"):
+    elif "$size" in c:
         return True
     elif c.isdigit():
         return False
