@@ -2,7 +2,7 @@ class TerminatedSymbooglixState:
 
     def __init__(self, state_id, status, memory, constraints):
         self.state_id    = state_id
-        self.status      = status   # TODO: Consider removing the status
+        self.status      = status
         self.memory      = memory
         self.constraints = constraints
 

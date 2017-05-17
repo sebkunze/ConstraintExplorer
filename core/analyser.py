@@ -72,12 +72,7 @@ def gen_test_instances(to_be_tested_state, already_tested_states):
 
     instances = []
 
-    # for overlapping_state in overlapping_states:
-    #     values = gen_satisfying_values_for_states([to_be_tested_state] + [overlapping_state])
-    #
-    #     instances.append(TestInstance(overlapping_state, values))
-
-    if overlapping_states:
+    if not overlapping_states == []:
         overlapping_state = overlapping_states[0]
 
         values = gen_satisfying_values_for_states([to_be_tested_state] + [overlapping_state])
@@ -88,8 +83,12 @@ def gen_test_instances(to_be_tested_state, already_tested_states):
 
 
 def find_overlapping_states(to_be_tested_state, already_tested_states):
-    # find source state s in list of target states t.
-    return [already_tested_state for already_tested_state in already_tested_states if is_overlapping_state(to_be_tested_state, already_tested_state)]
+
+    for already_tested_state in already_tested_states:
+        if is_overlapping_state(to_be_tested_state, already_tested_state):
+            return [already_tested_state]
+
+    return []
 
 
 def is_overlapping_state(state_x, state_y):

@@ -10,10 +10,14 @@ def to_program(terminated_symbooglix_states):
     # iterate terminated states of symbolically executed program
     for symbooglix_state in terminated_symbooglix_states:
 
+        # check if state is failing termination type.
+        if is_failing_termination_type(symbooglix_state):
+            continue
+
         logger.info("Extracting state's id.%s", '')
 
         # retrieve id.
-        id = to_id(symbooglix_state)
+        state_id = to_id(symbooglix_state)
 
         logger.info("Extracting state's conditions.%s", '')
 
@@ -33,7 +37,7 @@ def to_program(terminated_symbooglix_states):
         logger.info("Combining state's information.%s", '')
 
         # create symbolic state
-        state = SymbolicState(id, conditions, effects, trace)
+        state = SymbolicState(state_id, conditions, effects, trace)
 
         logger.info("Adding state's information to program.%s", '')
 
@@ -47,7 +51,20 @@ def to_id(symbooglix_state):
     return symbooglix_state.state_id
 
 
+def is_failing_termination_type(symbooglix_state):
+
+    # retrieve termination type information
+    termination_type = symbooglix_state.status['termination_type']
+
+    # check if is not failing termination type
+    if termination_type == "Symbooglix.TerminatedWithoutError":
+        return False
+
+    return True
+
+
 def to_conditions(symbooglix_state):
+
     # list of conditions.
     conditions = []
 
@@ -58,17 +75,14 @@ def to_conditions(symbooglix_state):
         origin = symbooglix_constraint['origin']
 
         # skip analysing constraints tagged as 'axiom' and 'requires'.
-        if origin.startswith("[Axiom]") or origin.startswith("[Requires]"):
-            continue
+        # if origin.startswith("[Axiom]") or origin.startswith("[Requires]"):
+        # if origin.startswith("[Requires]"):
+        #     continue
 
         # retrieve information in 'expr'.
         constraint = symbooglix_constraint['expr']
 
         if constraint == 'true':
-            # constraint = symbooglix_constraint['origin']
-            # constraint = constraint.split('[Cmd] assume {:partition}')[1]
-            # constraint = constraint.strip()
-            # constraint = constraint.replace(';','')
             continue
 
         logger.info("> Analysing symbooglix constraint: %s", constraint)
@@ -170,8 +184,11 @@ def to_effects(symbooglix_state):
 
 def remove_symbolic_prefix_and_suffix(string):
 
-    string = string.replace('~sb_', '')
-    string = string.replace('_0', '')
+    # remove prefix
+    string = re.sub(r'[/~]sb_', '', string)
+
+    # remove suffix
+    string = re.sub(r'_[\d]*', '', string)
 
     return string
 
@@ -403,46 +420,65 @@ def split_complex_constraint(expr):
     return has_negation_operator, has_logic_operator, constraints
 
 
-def split(string, *delimiters):
-    pattern = '|'.join(map(re.escape, delimiters))
-    return re.split(pattern, string)
-
-
 def to_constraint(symbooglix_constraint):
-    logger.debug(">>> Checking constraint: %s", symbooglix_constraint)
 
+    # split constraints into its three distinct parts.
+    left, op, right = split_constraint(symbooglix_constraint)
+
+    # remove any symbolic prefixes and suffixes.
+    left  = remove_symbolic_prefix_and_suffix(left)
+    op    = remove_symbolic_prefix_and_suffix(op)
+    right = remove_symbolic_prefix_and_suffix(right)
+
+    # rearrange assignment if value is on the left-hand side.
+    if left.isdigit() and not right.isdigit():
+        left, op, right = rearrange_assignment(left, op, right)
+
+    # check for integer constraint.
+    if not left.isdigit() and right.isdigit():
+
+        # check for adding prefix in variable declaration.
+        if " + intHeap" in left:
+            value, left = left.split(" + ", 1)
+
+            right = str(int(right) + int(value))
+
+        # check for substituting prefix in variable declaration.
+        elif " - intHeap" in left:
+            value, left = left.split(" - ", 1)
+
+            right = str(int(right) + int(value))
+
+    # check for negation in boolean constraint.
+    elif left.startswith("!"):
+            left = left[1:]
+            op = negate_operator(op)
+
+    return Constraint(left, op, right)
+
+
+def split_constraint(string):
     delimiters = "(==)", "(!=)", "(>=)", "(<=)", "(>)", "(<)"
     pattern = '|'.join(delimiters)
-    c = re.split(pattern, symbooglix_constraint)
+
+    c = re.split(pattern, string)
     c = filter(lambda x: x is not None, c)
 
-    logger.debug(">>> Split constraint: %s", c)
+    left  = c[0].strip()
+    op    = c[1].strip() if len(c) > 1 else '=='
+    right = c[2].strip() if len(c) > 2 else 'true'
 
-    var = c[0].strip()
-    op  = c[1].strip() if len(c) > 1 else '=='
-    val = c[2].strip() if len(c) > 2 else 'true'
-
-    var = var.replace('~sb_','')
-    var = var.replace('_0', '')
-
-    val = val.replace('~sb_','')
-    val = val.replace('_0', '')
-
-    logger.debug(">>> Split to z3 atoms.%s", '')
-    logger.debug(">>>> var: %s", var)
-    logger.debug(">>>> op:  %s", op)
-    logger.debug(">>>> val: %s", val)
+    return left, op, right
 
 
-    if var.startswith('!'):
-        constraint = Constraint(var[1:], neg(op), val)
-    else:
-        constraint = Constraint(var, op, val)
+def rearrange_assignment(left, op, right):
+    if op == ">" or op == ">=" or op == "<" or op == "<=":
+        op = negate_operator(op)
 
-    return constraint
+    return right, op, left
 
 
-def neg(op):
+def negate_operator(op):
     if op == '==':
         op = '!='
     elif op == '!=':
