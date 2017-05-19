@@ -1,20 +1,18 @@
 import json
-import os
 
-data = {"CREATE" : 0, "SKIP" : 0, "ADJUST" : 0}
+CREATE = "create"
 
-def to_be_skipped_test():
-    data['SKIP'] += 1
+SKIP   = "skip"
 
+ADJUST = "adjust"
 
-def to_be_adjusted_test():
-    data['ADJUST'] += 1
+data = {}
 
-
-def to_be_created_test():
-    data['CREATE'] += 1
+states = {CREATE : 0, SKIP : 0, ADJUST : 0}
 
 
 def dump(path):
+
+    # write data to file.
     with open(path, 'w') as f:
-        json.dump(data, f)
+        json.dump(states, f)

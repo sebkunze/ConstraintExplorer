@@ -17,7 +17,10 @@ def main():
     parser.add_argument("sources", help="input source files.", nargs="+")
 
     # adding optional arguments
-    parser.add_argument("-t", "--target", help="output target file.", default="out.yml")
+    parser.add_argument("-r", "--report", help="output report file.", default="out.json")
+
+    # adding optional arguments
+    parser.add_argument("-t", "--target", help="output directory.", default="out.yml")
 
     # adding mutually exclusive arguments.
     group1 = parser.add_mutually_exclusive_group()
@@ -36,31 +39,39 @@ def main():
     source_files = options.sources
 
     # fetching output directory.
-    output_file = options.target
+    output_directory = options.target
 
     # interpreting specified program variants.
     programs = loader.load_programs(source_files)
 
     if options.analyse_states:
         # analysing programs' states
-        tests = analyser.analyse_program_states(programs[0])
+        create = analyser.analyse_program_states(programs[0])
+
+        # save number of created states to report.
+        report.states[report.CREATE] = len(create)
 
         # exporting analysed programs' states.
-        dumper.dump(tests, output_file)
+        dumper.dump_analysis_output(output_directory, create)
 
     elif options.compare_states:
         # comparing programs' states.
-        states = analyser.compare_program_states(programs[0], programs[1])
+        create, skip, adjust = analyser.compare_program_states(programs[0], programs[1])
+
+        # save number of created states to report.
+        report.states[report.CREATE] = len(create)
+
+        # save number of skipped states to report.
+        report.states[report.SKIP] = len(skip)
+
+        # save number of adjusted states to report.
+        report.states[report.ADJUST] = len(adjust)
 
         # exporting analysed programs' states.
-        dumper.dump(states, output_file)
+        dumper.dump_comparison_output(output_directory, create, skip, adjust)
 
-    # get path to output file's directory.
-    dir, file = os.path.split(output_file)
-    base = file.split(".")[0]
-    path = os.path.join(dir, (base + ".json"))
-
-    report.dump(path)
+    # write report to specified file.
+    report.dump(options.report)
 
 if __name__ == '__main__':
     main()
