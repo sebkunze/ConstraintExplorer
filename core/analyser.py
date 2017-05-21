@@ -1,7 +1,8 @@
 from z3 import Bool, Int, And, Or, Implies, Not, Solver, sat
 
 from core.object.data.test import TestInfo, TestInstance
-from core.utils            import logger, report
+from core.utils            import logger
+
 
 def analyse_program_states(program):
     create = []
@@ -22,68 +23,170 @@ def compare_program_states(to_be_tested_program, already_tested_program):
     for to_be_tested_state in to_be_tested_program.states:
         logger.info("Inspecting symbolic state %s", to_be_tested_state.identifier)
 
-        equivalent_states = \
-            find_equivalent_states(to_be_tested_state, already_tested_program.states)
+        # perform a light-weight set-based analysis.
+        syntactic_equivalent_states \
+            = find_syntactic_equivalent_states(to_be_tested_state, already_tested_program.states)
 
-        if equivalent_states:
-            logger.debug("Found %s equivalent state(s) to skip.", len(equivalent_states))
+        if syntactic_equivalent_states:
+
+            logger.info("Found %s syntactic equivalent state(s) to skip.", len(syntactic_equivalent_states))
 
             test_instances = \
-                gen_test_instances(to_be_tested_state, already_tested_program.states)
+                gen_test_instances(to_be_tested_state, syntactic_equivalent_states)
 
             info = TestInfo("SKIP", to_be_tested_state, test_instances, [])
 
             skip.append(info)
-        else:
-            test_instances = \
-                gen_test_instances(to_be_tested_state, already_tested_program.states)
 
-            logger.debug("Found %s test instance(s) to reuse.", len(test_instances))
+            continue
 
-            values = \
-                gen_satisfying_values_for_state(to_be_tested_state)
+        # perform a expensive z3-based analysis
+        overlapping_states \
+            = find_overlapping_states(to_be_tested_state, already_tested_program.states)
 
-            if test_instances:
+        if overlapping_states:
+
+            semantic_equivalent_states = \
+                find_semantic_equivalent_states(to_be_tested_state, overlapping_states)
+
+            if semantic_equivalent_states:
+
+                logger.info("Found %s semantic equivalent state(s) to skip.", len(semantic_equivalent_states))
+
+                test_instances = \
+                    gen_test_instances(to_be_tested_state, semantic_equivalent_states)
+
+                info = TestInfo("SKIP", to_be_tested_state, test_instances, [])
+
+                skip.append(info)
+            else:
+
+                logger.info("Found %s overlapping state(s) to adjust.", len(overlapping_states))
+
+                test_instances = \
+                    gen_test_instances(to_be_tested_state, overlapping_states)
+                #
+                # values = \
+                #     gen_satisfying_values_for_state(to_be_tested_state)
+
                 info = \
-                    TestInfo("ADJUST", to_be_tested_state, test_instances, values)
+                    TestInfo("ADJUST", to_be_tested_state, test_instances, [])
 
                 adjust.append(info)
-            else:
-                info = \
-                    TestInfo("CREATE", to_be_tested_state, test_instances, values)
 
-                create.append(info)
+            continue
+
+        logger.info("Found state to create.%s", '')
+
+        # values = \
+        #     gen_satisfying_values_for_state(to_be_tested_state)
+
+        info = \
+            TestInfo("CREATE", to_be_tested_state, [], [])
+
+        create.append(info)
+
+        print "CREATE"
 
     return create, skip, adjust
 
 
-def gen_test_instances(to_be_tested_state, already_tested_states):
-    overlapping_states \
-        = find_overlapping_states(to_be_tested_state, already_tested_states)
-
+def gen_test_instances(state_x, states_y):
     instances = []
 
-    if not overlapping_states == []:
-        overlapping_state = overlapping_states[0]
+    if not states_y == []:
+        state_y = states_y[0]
 
-        values = gen_satisfying_values_for_states([to_be_tested_state] + [overlapping_state])
+        values = gen_satisfying_values_for_states([state_x] + [state_y])
 
-        instances.append(TestInstance(overlapping_state, values))
+        instances.append(TestInstance(states_y, values))
 
     return instances
 
 
-def find_overlapping_states(to_be_tested_state, already_tested_states):
+def find_syntactic_equivalent_states(state_s, states_t):
 
-    for already_tested_state in already_tested_states:
-        if is_overlapping_state(to_be_tested_state, already_tested_state):
-            return [already_tested_state]
+    # find source state s in list of target states t.
+    for state_t in states_t:
+        if is_overlapping_state(state_s, state_t):
+            return [state_t]
 
     return []
 
 
+def is_syntactic_equivalent_state(state_s, state_t):
+
+    # compare state s' conditions and effects to those of state t.
+    return set(state_s.conditions) == set(state_t.conditions) \
+            and set(state_s.effects) == set(state_t.effects)
+
+
+def find_semantic_equivalent_states(state_s, states_t):
+
+    # find source state s in list of target states t.
+    return [state_t for state_t in states_t if is_semantic_equivalent_state(state_s, state_t)]
+
+
+def is_semantic_equivalent_state(state_x, state_y):
+    s = Solver()
+
+    # parse all conditions of state x.
+    constraints_x = None
+    for condition in state_x.conditions:
+
+        constraint = to_z3_constraint(condition)
+
+        if constraints_x is None:
+            constraints_x = constraint
+        else:
+            constraints_x = And(constraint, constraints_x)
+
+    # parse all conditions of state y.
+    constraints_y = None
+    for condition in state_y.conditions:
+
+        constraint = to_z3_constraint(condition)
+
+        if constraints_y is None:
+            constraints_y = constraint
+        else:
+            constraints_y = And(constraint, constraints_y)
+
+    # create scope for assertions.
+    s.push()
+
+    # check for differential behaviour.
+    s.add(Not(Implies(constraints_x, constraints_y)))
+    if s.check() == sat:
+        return False
+
+    # remove existing assertions.
+    s.pop()
+
+    # create scope for assertions.
+    s.push()
+
+    # check for differential behaviour.
+    s.add(Not(Implies(constraints_y, constraints_x)))
+    if s.check() == sat:
+        return False
+
+    # remove existing assertions.
+    s.pop()
+
+    return True
+
+
+def find_overlapping_states(state_s, states_t):
+
+    return [state_t for state_t in states_t if is_overlapping_state(state_s, state_t)]
+
+
 def is_overlapping_state(state_x, state_y):
     s = Solver()
+
+    # create scope for assertions.
+    s.push()
 
     # parse all conditions of state x.
     for condition in state_x.conditions:
@@ -94,18 +197,12 @@ def is_overlapping_state(state_x, state_y):
         s.add(to_z3_constraint(condition))
 
     # run z3 check.
-    return True if s.check() == sat else False
+    overlapping = True if s.check() == sat else False
 
+    # remove existing assertions.
+    s.pop()
 
-def find_equivalent_states(state_s, states_t):
-    # find source state s in list of target states t.
-    return [state_t for state_t in states_t if is_equivalent_state(state_s, state_t)]
-
-
-def is_equivalent_state(state_s, state_t):
-    # compare state s' conditions and effects to those of state t.
-    return set(state_s.conditions) == set(state_t.conditions) \
-            and set(state_s.effects) == set(state_t.effects)
+    return overlapping
 
 
 def to_z3_constraint(condition): # TODO: Change method name!
@@ -129,6 +226,9 @@ def to_z3_constraint(condition): # TODO: Change method name!
 
 
 def parse_to_z3_object(constraint):
+
+    if constraint is None:
+        return True
 
     # unpack variables, e.g., 'heap[this][MyClass.field]' or 'someMethod.variable'
     var = unpack_variable_name(constraint.var)

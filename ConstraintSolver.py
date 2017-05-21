@@ -45,8 +45,15 @@ def main():
     programs = loader.load_programs(source_files)
 
     if options.analyse_states:
+
+        # starting execution time.
+        report.start_tracking_execution_time()
+
         # analysing programs' states
         create = analyser.analyse_program_states(programs[0])
+
+        # stopping execution time.
+        report.stop_tracking_execution_time()
 
         # save number of created states to report.
         report.states[report.CREATE] = len(create)
@@ -55,17 +62,18 @@ def main():
         dumper.dump_analysis_output(output_directory, create)
 
     elif options.compare_states:
+
+        # starting execution time.
+        report.start_tracking_execution_time()
+
         # comparing programs' states.
         create, skip, adjust = analyser.compare_program_states(programs[0], programs[1])
 
-        # save number of created states to report.
-        report.states[report.CREATE] = len(create)
+        # stopping execution time.
+        report.stop_tracking_execution_time()
 
-        # save number of skipped states to report.
-        report.states[report.SKIP] = len(skip)
-
-        # save number of adjusted states to report.
-        report.states[report.ADJUST] = len(adjust)
+        # save number of states to report.
+        report.update_states(create, skip, adjust)
 
         # exporting analysed programs' states.
         dumper.dump_comparison_output(output_directory, create, skip, adjust)
