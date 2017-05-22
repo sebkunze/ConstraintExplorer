@@ -9,10 +9,13 @@ def analyse_program_states(program):
 
     for state in program.states:
         # generate satisfying values.
-        values = gen_satisfying_values_for_state(state)
+        values = generate_satisfying_values([state])
+
+        # collect test information.
+        info = TestInfo("CREATE", state, [], values)
 
         # store test information.
-        create.append(TestInfo("CREATE", state, [], values))
+        create.append(info)
 
     return create
 
@@ -24,53 +27,66 @@ def compare_program_states(to_be_tested_program, already_tested_program):
         logger.info("Inspecting symbolic state %s", to_be_tested_state.identifier)
 
         # perform a light-weight set-based analysis.
-        syntactic_equivalent_states \
-            = find_syntactic_equivalent_states(to_be_tested_state, already_tested_program.states)
+        syntactic_equivalent_states = find_syntactic_equivalent_states(to_be_tested_state, already_tested_program.states)
 
         if syntactic_equivalent_states:
 
             logger.info("Found %s syntactic equivalent state(s) to skip.", len(syntactic_equivalent_states))
 
-            test_instances = \
-                gen_test_instances(to_be_tested_state, syntactic_equivalent_states)
+            trajected_state = find_test_trajectory(to_be_tested_state, syntactic_equivalent_states)
 
-            info = TestInfo("SKIP", to_be_tested_state, test_instances, [])
+            trajected_state_values = generate_satisfying_values([trajected_state])
+
+            instance = TestInstance(trajected_state, trajected_state_values)
+
+            to_be_tested_state_values = generate_satisfying_values([to_be_tested_state] + [trajected_state])
+
+            info = TestInfo("SYNTACTIC SKIP", to_be_tested_state, [instance], to_be_tested_state_values, [])
 
             skip.append(info)
 
             continue
 
         # perform a expensive z3-based analysis
-        overlapping_states \
-            = find_overlapping_states(to_be_tested_state, already_tested_program.states)
+        overlapping_states = find_overlapping_states(to_be_tested_state, already_tested_program.states)
 
         if overlapping_states:
 
-            semantic_equivalent_states = \
-                find_semantic_equivalent_states(to_be_tested_state, overlapping_states)
+            semantic_equivalent_states = find_semantic_equivalent_states(to_be_tested_state, overlapping_states)
 
             if semantic_equivalent_states:
 
                 logger.info("Found %s semantic equivalent state(s) to skip.", len(semantic_equivalent_states))
 
-                test_instances = \
-                    gen_test_instances(to_be_tested_state, semantic_equivalent_states)
+                trajected_state = find_test_trajectory(to_be_tested_state, semantic_equivalent_states)
 
-                info = TestInfo("SKIP", to_be_tested_state, test_instances, [])
+                trajected_state_values = generate_satisfying_values([trajected_state])
+
+                instance = TestInstance(trajected_state, trajected_state_values)
+
+                to_be_tested_state_values = generate_satisfying_values([to_be_tested_state] + [trajected_state])
+
+                differential_values = generate_differential_values(trajected_state_values, to_be_tested_state_values)
+
+                info = TestInfo("SEMANTIC SKIP", to_be_tested_state, [instance], to_be_tested_state_values, differential_values)
 
                 skip.append(info)
+
             else:
 
                 logger.info("Found %s overlapping state(s) to adjust.", len(overlapping_states))
 
-                test_instances = \
-                    gen_test_instances(to_be_tested_state, overlapping_states)
-                #
-                # values = \
-                #     gen_satisfying_values_for_state(to_be_tested_state)
+                trajected_state = find_test_trajectory(to_be_tested_state, overlapping_states)
 
-                info = \
-                    TestInfo("ADJUST", to_be_tested_state, test_instances, [])
+                trajected_state_values = generate_satisfying_values([trajected_state])
+
+                instance = TestInstance(trajected_state, trajected_state_values)
+
+                to_be_tested_state_values = generate_satisfying_values([to_be_tested_state] + [trajected_state])
+
+                differential_values = generate_differential_values(trajected_state_values, to_be_tested_state_values)
+
+                info = TestInfo("ADJUST", to_be_tested_state, [instance], to_be_tested_state_values, differential_values)
 
                 adjust.append(info)
 
@@ -78,37 +94,29 @@ def compare_program_states(to_be_tested_program, already_tested_program):
 
         logger.info("Found state to create.%s", '')
 
-        # values = \
-        #     gen_satisfying_values_for_state(to_be_tested_state)
+        to_be_tested_state_values = generate_satisfying_values([to_be_tested_state])
 
-        info = \
-            TestInfo("CREATE", to_be_tested_state, [], [])
+        info = TestInfo("CREATE", to_be_tested_state, [], to_be_tested_state_values, [])
 
         create.append(info)
-
-        print "CREATE"
 
     return create, skip, adjust
 
 
-def gen_test_instances(state_x, states_y):
-    instances = []
+def find_test_trajectory(state_x, states_y):
 
-    if not states_y == []:
-        state_y = states_y[0]
+    if states_y == []:
+        return []
 
-        values = gen_satisfying_values_for_states([state_x] + [state_y])
-
-        instances.append(TestInstance(states_y, values))
-
-    return instances
+    # for now we just pick the very first state.
+    return states_y[0]
 
 
 def find_syntactic_equivalent_states(state_s, states_t):
 
     # find source state s in list of target states t.
     for state_t in states_t:
-        if is_overlapping_state(state_s, state_t):
+        if is_syntactic_equivalent_state(state_s, state_t):
             return [state_t]
 
     return []
@@ -179,6 +187,7 @@ def is_semantic_equivalent_state(state_x, state_y):
 
 def find_overlapping_states(state_s, states_t):
 
+    # find source state s in list of target states t.
     return [state_t for state_t in states_t if is_overlapping_state(state_s, state_t)]
 
 
@@ -266,40 +275,34 @@ def unpack_variable_name(string):
     return string.rsplit(".",1)[-1]
 
 
-def gen_satisfying_values_for_state(symbolic_state):
+def generate_satisfying_values(symbolic_states):
     s = Solver()
 
-    logger.info("Generating satisfying values for symbolic states %s.", symbolic_state.identifier)
+    # creating scope for assertions.
+    s.push()
 
-    for condition in symbolic_state.conditions:
-        s.add(to_z3_constraint(condition))
-
-    values = []
-
-    if s.check() == sat:
-        values = model_to_list(s.model())
-
-    return values
-
-
-def gen_satisfying_values_for_states(symbolic_states):
-    s = Solver()
-
-    logger.info("Generating satisfying values for symbolic states %s.", reduce(lambda x,y: x + str(y) + ", ", [state.identifier for state in symbolic_states], ""))
-
+    # iterating symbolic states.
     for symbolic_state in symbolic_states:
+
+        # iterating symbolic conditions.
         for condition in symbolic_state.conditions:
             s.add(to_z3_constraint(condition))
 
-    values = []
+    # generate satisfying values.
+    values = parse_satisfying_values(s.model()) if s.check() == sat else []
 
-    if s.check() == sat:
-        values = model_to_list(s.model())
+    # remove existing assertions.
+    s.pop()
 
     return values
 
 
-def model_to_list(model):
+def generate_differential_values(values_x, values_y):
+
+    return list(set(values_x) - set(values_y)) if list(set(values_y) - set(values_x)) == [] else list(set(values_y) - set(values_x))
+
+
+def parse_satisfying_values(model):
     # FIXME: This is terrible! It seems like z3 inserts randomly \n characters when it is parsed to a string representation. Thus, we replace these characters and create a list.
     values = [v.strip() for v in (str(model).replace('\n', ''))[1:-1].split(',')]
     return values
@@ -356,12 +359,10 @@ def to_z3_boolean_constraint(constraint):
 def parse_to_z3_boolean_type(string):
 
     # parse true type.
-    # TODO: Not sure if '!false' is actually generated by symbooglix. Figure out and fix!
     if string == "true" or string == "!false":
         typ = True
 
     # parse false type.
-    # TODO: Not sure if '!true' is actually generated by symbooglix. Figure out and fix!
     elif string == "false" or string == "!true":
         typ = False
 
@@ -420,13 +421,23 @@ def parse_to_z3_integer_type(string):
     elif " + intHeap" in string:
         value, variable = string.split(" + ", 1)
 
-        typ = Int(variable) + int(value)
+        # check if value is a numerical value.
+        if value.isdigit():
+            typ = Int(variable) + int(value)
+
+        else:
+            typ = Int(string)
 
     # parse arithmetic operations, e.g., '1 - intHeap[obj][field]'
     elif " - intHeap" in string:
         value, variable = string.split(" - ", 1)
 
-        typ = Int(variable) - int(value)
+        # check if value is a numerical value.
+        if value.isdigit():
+            typ = Int(variable) - int(value)
+
+        else:
+            typ = Int(string)
 
     # parse variable name, e.g., 'intHeap[obj][field]
     else:

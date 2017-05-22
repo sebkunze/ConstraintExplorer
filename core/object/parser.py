@@ -71,14 +71,6 @@ def to_conditions(symbooglix_state):
     # iterate constraints of terminated state
     for symbooglix_constraint in SymbooglixConstraintIterator(symbooglix_state):
 
-        # retrieve information in 'origin'.
-        origin = symbooglix_constraint['origin']
-
-        # skip analysing constraints tagged as 'axiom' and 'requires'.
-        # if origin.startswith("[Axiom]") or origin.startswith("[Requires]"):
-        # if origin.startswith("[Requires]"):
-        #     continue
-
         # retrieve information in 'expr'.
         constraint = symbooglix_constraint['expr']
 
@@ -126,6 +118,151 @@ def to_conditions(symbooglix_state):
         conditions.append(condition)
 
     return conditions
+
+
+def split_complex_constraint(expr):
+    logger.debug(">> Splitting complex symbooglix constraint: %s", expr)
+
+    has_negation_operator = False;
+
+    if expr.startswith('!('):
+        has_negation_operator = True
+
+        expr = expr[2:-1]
+    elif expr.startswith('!'):
+        has_negation_operator = True
+
+        expr = expr[1:]
+
+    logger.debug(">>> Complex symbooglix constraint has negation: %s", has_negation_operator)
+
+    has_logic_operator = None
+
+    if "&&" in expr:
+        delimiters = "&&"
+        pattern = '|'.join(map(re.escape, delimiters))
+        constraints = re.split(pattern, expr)
+
+        has_logic_operator = "&&"
+
+        logger.debug(">>> Complex symbooglix constraint has && operator: %s", True)
+
+    if "||" in expr:
+        delimiters = "||"
+        pattern = '|'.join(map(re.escape, delimiters))
+        constraints = re.split(pattern, expr)
+
+        has_logic_operator = "||"
+
+        logger.debug(">>> Complex symbooglix constraint has || operator: %s", True)
+
+    if has_logic_operator is None:
+        constraints = [expr]
+
+    logger.debug(">>> Complex symbooglix constraints: %s", constraints)
+
+    return has_negation_operator, has_logic_operator, constraints
+
+
+def to_constraint(symbooglix_constraint):
+
+    # split constraints into its three distinct parts.
+    left, op, right = split_constraint(symbooglix_constraint)
+
+    # remove any symbolic prefixes and suffixes.
+    left  = remove_symbolic_prefix_and_suffix(left)
+    op    = remove_symbolic_prefix_and_suffix(op)
+    right = remove_symbolic_prefix_and_suffix(right)
+
+    # rearrange assignment if value is on the left-hand side.
+    if left.isdigit() and not right.isdigit():
+        left, op, right = rearrange_assignment(left, op, right)
+
+    # check for integer constraint.
+    if not left.isdigit() and right.isdigit():
+
+        # check for adding prefix in variable declaration.
+        if " + intHeap" in left:
+            value, variable = left.split(" + ", 1)
+
+            # check if left-hand side of variable declaration is numerical.
+            if value.isdigit():
+                left = variable
+                right = str(int(right) + int(value))
+
+        # check for substituting prefix in variable declaration.
+        elif " - intHeap" in left:
+            value, variable = left.split(" - ", 1)
+
+            # check if left-hand side of variable declaration is numerical.
+            if value.isdigit():
+                left = variable
+                right = str(int(right) + int(value))
+
+    # check for negation in boolean constraint.
+    elif left.startswith("!"):
+            left = left[1:]
+            op = negate_operator(op)
+
+    return Constraint(left, op, right)
+
+
+def split_constraint(string):
+
+    # list supported operators.
+    delimiters = "(==)", "(!=)", "(>=)", "(<=)", "(>)", "(<)"
+    pattern = '|'.join(delimiters)
+
+    # split given string.
+    c = re.split(pattern, string)
+    c = filter(lambda x: x is not None, c)
+
+    # retrieve information and add missing information for boolean constraints.
+    left  = c[0].strip()
+    op    = c[1].strip() if len(c) > 1 else '=='
+    right = c[2].strip() if len(c) > 2 else 'true'
+
+    return left, op, right
+
+
+def rearrange_assignment(left, op, right):
+    if op == ">" or op == ">=" or op == "<" or op == "<=":
+        op = negate_operator(op)
+
+    return right, op, left
+
+
+def negate_operator(op):
+    if op == '==':
+        op = '!='
+    elif op == '!=':
+        op = '=='
+    elif op == '<':
+        op = '>='
+    elif op == '<=':
+        op = '>'
+    elif op == '>':
+        op = '<='
+    elif op == '>=':
+        op = '<'
+    else:
+
+        logger.error("The following operator not supported: %s", op)
+
+        raise Exception('cannot create negation of op')
+
+    return op
+
+
+def remove_symbolic_prefix_and_suffix(string):
+
+    # remove prefix, i.e., '~sb_'.
+    string = re.sub(r'[/~]sb_', '', string)
+
+    # remove suffix, e.g., '_0' or '_99'.
+    string = re.sub(r'_[\d]*', '', string)
+
+    return string
 
 
 def to_effects(symbooglix_state):
@@ -180,17 +317,6 @@ def to_effects(symbooglix_state):
         effects.append(effect)
 
     return effects
-
-
-def remove_symbolic_prefix_and_suffix(string):
-
-    # remove prefix
-    string = re.sub(r'[/~]sb_', '', string)
-
-    # remove suffix
-    string = re.sub(r'_[\d]*', '', string)
-
-    return string
 
 
 def parse_heap(string):
@@ -373,129 +499,6 @@ def check_if_assignment(string):
     left, _, right = parse_to_assignment(string)
 
     return True if left and right else False
-
-
-
-def split_complex_constraint(expr):
-    logger.debug(">> Splitting complex symbooglix constraint: %s", expr)
-
-    has_negation_operator = False;
-
-    if expr.startswith('!('):
-        has_negation_operator = True
-
-        expr = expr[2:-1]
-    elif expr.startswith('!'):
-        has_negation_operator = True
-
-        expr = expr[1:]
-
-    logger.debug(">>> Complex symbooglix constraint has negation: %s", has_negation_operator)
-
-    has_logic_operator = None
-
-    if "&&" in expr:
-        delimiters = "&&"
-        pattern = '|'.join(map(re.escape, delimiters))
-        constraints = re.split(pattern, expr)
-
-        has_logic_operator = "&&"
-
-        logger.debug(">>> Complex symbooglix constraint has && operator: %s", True)
-
-    if "||" in expr:
-        delimiters = "||"
-        pattern = '|'.join(map(re.escape, delimiters))
-        constraints = re.split(pattern, expr)
-
-        has_logic_operator = "||"
-
-        logger.debug(">>> Complex symbooglix constraint has || operator: %s", True)
-
-    if has_logic_operator is None:
-        constraints = [expr]
-
-    logger.debug(">>> Complex symbooglix constraints: %s", constraints)
-
-    return has_negation_operator, has_logic_operator, constraints
-
-
-def to_constraint(symbooglix_constraint):
-
-    # split constraints into its three distinct parts.
-    left, op, right = split_constraint(symbooglix_constraint)
-
-    # remove any symbolic prefixes and suffixes.
-    left  = remove_symbolic_prefix_and_suffix(left)
-    op    = remove_symbolic_prefix_and_suffix(op)
-    right = remove_symbolic_prefix_and_suffix(right)
-
-    # rearrange assignment if value is on the left-hand side.
-    if left.isdigit() and not right.isdigit():
-        left, op, right = rearrange_assignment(left, op, right)
-
-    # check for integer constraint.
-    if not left.isdigit() and right.isdigit():
-
-        # check for adding prefix in variable declaration.
-        if " + intHeap" in left:
-            value, left = left.split(" + ", 1)
-
-            right = str(int(right) + int(value))
-
-        # check for substituting prefix in variable declaration.
-        elif " - intHeap" in left:
-            value, left = left.split(" - ", 1)
-
-            right = str(int(right) + int(value))
-
-    # check for negation in boolean constraint.
-    elif left.startswith("!"):
-            left = left[1:]
-            op = negate_operator(op)
-
-    return Constraint(left, op, right)
-
-
-def split_constraint(string):
-    delimiters = "(==)", "(!=)", "(>=)", "(<=)", "(>)", "(<)"
-    pattern = '|'.join(delimiters)
-
-    c = re.split(pattern, string)
-    c = filter(lambda x: x is not None, c)
-
-    left  = c[0].strip()
-    op    = c[1].strip() if len(c) > 1 else '=='
-    right = c[2].strip() if len(c) > 2 else 'true'
-
-    return left, op, right
-
-
-def rearrange_assignment(left, op, right):
-    if op == ">" or op == ">=" or op == "<" or op == "<=":
-        op = negate_operator(op)
-
-    return right, op, left
-
-
-def negate_operator(op):
-    if op == '==':
-        op = '!='
-    elif op == '!=':
-        op = '=='
-    elif op == '<':
-        op = '>='
-    elif op == '<=':
-        op = '>'
-    elif op == '>':
-        op = '<='
-    elif op == '>=':
-        op = '<'
-    else:
-        print op
-        raise Exception('cannot create negation of op')
-
-    return op
 
 
 def to_trace(symbooglix_state):
