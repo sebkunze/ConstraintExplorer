@@ -71,6 +71,16 @@ def to_conditions(symbooglix_state):
     # iterate constraints of terminated state
     for symbooglix_constraint in SymbooglixConstraintIterator(symbooglix_state):
 
+        # retrieve information in 'origin
+        origin = symbooglix_constraint['origin']
+
+        if origin.startswith("[Axiom]"):
+            typ = "Axiom"
+        elif origin.startswith("[Cmd]"):
+            typ = "Command"
+        elif origin.startswith("[Requires]"):
+            typ = "Requires"
+
         # retrieve information in 'expr'.
         constraint = symbooglix_constraint['expr']
 
@@ -110,7 +120,7 @@ def to_conditions(symbooglix_state):
             nested_constraints.append(nested_constraint)
 
         # generate condition.
-        condition = Condition(has_negation_operator, has_logic_operator, nested_constraints)
+        condition = Condition(has_negation_operator, has_logic_operator, nested_constraints, typ)
 
         logger.info("> Generated condition: %s", condition)
 
@@ -178,31 +188,22 @@ def to_constraint(symbooglix_constraint):
     if left.isdigit() and not right.isdigit():
         left, op, right = rearrange_assignment(left, op, right)
 
-    # check for integer constraint.
-    if not left.isdigit() and right.isdigit():
+    # check for negation in constraint.
+    if left.startswith('!'):
+        left = left[1:]
+        op = negate_operator(op)
 
-        # check for adding prefix in variable declaration.
-        if " + intHeap" in left:
-            value, variable = left.split(" + ", 1)
+    # parse boolean constraints.
+    # if is_boolean_heap_access(left, op, right):
+    #     left, op, right = parse_boolean_heap_access(left, op, right)
 
-            # check if left-hand side of variable declaration is numerical.
-            if value.isdigit():
-                left = variable
-                right = str(int(right) + int(value))
+    # parse integer constraints.
+    if is_integer_heap_access(left, op, right):
+        left, op, right = parse_integer_heap_access(left, op, right)
 
-        # check for substituting prefix in variable declaration.
-        elif " - intHeap" in left:
-            value, variable = left.split(" - ", 1)
-
-            # check if left-hand side of variable declaration is numerical.
-            if value.isdigit():
-                left = variable
-                right = str(int(right) + int(value))
-
-    # check for negation in boolean constraint.
-    elif left.startswith("!"):
-            left = left[1:]
-            op = negate_operator(op)
+    # parse object constraints.
+    # if is_object_heap_access(left, op, right):
+    #     left, op, right = parse_object_heap_access(left, op, right)
 
     return Constraint(left, op, right)
 
@@ -225,7 +226,20 @@ def split_constraint(string):
     return left, op, right
 
 
+def remove_symbolic_prefix_and_suffix(string):
+
+    # remove prefix, i.e., '~sb_'.
+    string = re.sub(r'[/~]sb_', '', string)
+
+    # remove suffix, e.g., '_0' or '_99'.
+    string = re.sub(r'_[\d]*', '', string)
+
+    return string
+
+
 def rearrange_assignment(left, op, right):
+
+    # check for certain operators.
     if op == ">" or op == ">=" or op == "<" or op == "<=":
         op = negate_operator(op)
 
@@ -254,15 +268,168 @@ def negate_operator(op):
     return op
 
 
-def remove_symbolic_prefix_and_suffix(string):
+def is_boolean_heap_access(left, op, right):
 
-    # remove prefix, i.e., '~sb_'.
-    string = re.sub(r'[/~]sb_', '', string)
+    if left.startswith("boolHeap") or left.startswith("!boolHeap"):
+        return True
 
-    # remove suffix, e.g., '_0' or '_99'.
-    string = re.sub(r'_[\d]*', '', string)
+    return False
 
-    return string
+
+def parse_boolean_heap_access(left, op, right):
+
+    # split heap access into pieces.
+    heap, fields = unpack_heap_access(left)
+
+    # remove heap history by focusing on the last field.
+    if len(fields) > 2:
+
+        # filter heap assignments.
+        fields = filter(lambda field: not is_boolean_heap_assignment(field), fields)
+
+        # build new heap.
+        left = heap + reduce(lambda x, y: x + "[" + y + "]", fields, "")
+
+    return left, op, right
+
+
+def is_boolean_heap_assignment(string):
+    left, op, right = parse_to_assignment(string)
+
+    if not left == '' and not right == '':
+        return True
+
+    return False
+
+
+def is_integer_heap_access(left, op, right):
+
+    if left.startswith("intHeap"):
+        return True
+
+    if not left.isdigit() and right.isdigit():
+        return True
+
+    return False
+
+
+def parse_integer_heap_access(left, op, right):
+
+    # check for adding prefix in variable declaration.
+    if " + intHeap" in left:
+        value, variable = left.split(" + ", 1)
+
+        # check if left-hand side of variable declaration is numerical.
+        if value.isdigit():
+            left = variable
+            right = str(int(right) + int(value))
+
+    # check for substituting prefix in variable declaration.
+    elif " - intHeap" in left:
+        value, variable = left.split(" - ", 1)
+
+        # check if left-hand side of variable declaration is numerical.
+        if value.isdigit():
+            left = variable
+            right = str(int(right) + int(value))
+
+    return left, op, right
+
+
+def is_object_heap_access(left, op, right):
+
+    if left.startswith("objHeap"):
+        return True
+
+    return False
+
+
+def parse_object_heap_access(left, op, right):
+
+    # split heap access into pieces.
+    heap, fields = unpack_heap_access(left)
+
+    # remove heap history by focusing on the last field.
+    if len(fields) > 2:
+
+        # filter heap assignments.
+        fields = filter(lambda field: not is_inner_heap_assignment(field), fields)
+
+        # build new heap.
+        left = heap + reduce(lambda x, y: x + "[" + y + "]", fields, "")
+
+    return left, op, right
+
+
+def is_inner_heap_assignment(string):
+    left, op, right = parse_to_assignment(string)
+
+    if not left == '' and not right == '':
+        return True
+
+    return False
+
+
+def unpack_heap_access(string):
+
+    # retrieve heap information.
+    heap = string.split("[",1)[0]
+
+    # check if string encapsulates heap definition.
+    if not heap:
+        return "", []
+
+    # split heap definition from string.
+    string = string.split(heap,1)[-1]
+
+    # specify list of all fields.
+    fields = []
+
+    # iterate all fields.
+    while not string == '':
+
+        # parse field within first parenthesis.
+        field = parse_string_in_parenthesis(string)
+
+        # split parsed field definition.
+        string = string.split(field,1)[-1]
+
+        # remove tailing ']'.
+        if string.startswith(']'):
+            string = string[1:]
+
+        # append to list of fields.
+        fields.append(field)
+
+    return heap, fields
+
+
+def parse_string_in_parenthesis(string):
+    stack = []
+
+    s = []
+    for c in string:
+        if c == "[" and len(stack) is 0:
+            stack.append(c)
+
+        elif c == "[" and len(stack) > 0:
+            s.append(c)
+
+            stack.append(c)
+        elif c == "]" and len(stack) is 0:
+            return ""
+
+        elif c == "]" and len(stack) is 1:
+            break;
+
+        elif c == "]":
+            s.append(c)
+            stack.pop()
+
+        elif stack:
+            s.append(c)
+
+    return ''.join(s)
 
 
 def to_effects(symbooglix_state):

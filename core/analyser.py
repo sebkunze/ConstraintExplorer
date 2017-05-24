@@ -12,7 +12,7 @@ def analyse_program_states(program):
         values = generate_satisfying_values([state])
 
         # collect test information.
-        info = TestInfo("CREATE", state, [], values)
+        info = TestInfo("CREATE", state, [], values, [])
 
         # store test information.
         create.append(info)
@@ -24,14 +24,15 @@ def compare_program_states(to_be_tested_program, already_tested_program):
     create, skip, adjust = [], [], []
 
     for to_be_tested_state in to_be_tested_program.states:
-        logger.info("Inspecting symbolic state %s", to_be_tested_state.identifier)
+
+        logger.debug("Performing light-weight set-based analysis.%s", '')
 
         # perform a light-weight set-based analysis.
         syntactic_equivalent_states = find_syntactic_equivalent_states(to_be_tested_state, already_tested_program.states)
 
         if syntactic_equivalent_states:
 
-            logger.info("Found %s syntactic equivalent state(s) to skip.", len(syntactic_equivalent_states))
+            logger.info("Found %s syntactic equivalent state(s).", len(syntactic_equivalent_states))
 
             trajected_state = find_test_trajectory(to_be_tested_state, syntactic_equivalent_states)
 
@@ -47,16 +48,22 @@ def compare_program_states(to_be_tested_program, already_tested_program):
 
             continue
 
+        logger.debug("Performing expensive z3-based analysis.%s",'')
+
         # perform a expensive z3-based analysis
         overlapping_states = find_overlapping_states(to_be_tested_state, already_tested_program.states)
 
+        logger.debug("Found %s overlapping state(s)", len(overlapping_states))
+
         if overlapping_states:
+
+            logger.debug("Checking for semantic equivalent states.%s",'')
 
             semantic_equivalent_states = find_semantic_equivalent_states(to_be_tested_state, overlapping_states)
 
             if semantic_equivalent_states:
 
-                logger.info("Found %s semantic equivalent state(s) to skip.", len(semantic_equivalent_states))
+                logger.info("Found %s semantic equivalent state(s).", len(semantic_equivalent_states))
 
                 trajected_state = find_test_trajectory(to_be_tested_state, semantic_equivalent_states)
 
@@ -74,7 +81,7 @@ def compare_program_states(to_be_tested_program, already_tested_program):
 
             else:
 
-                logger.info("Found %s overlapping state(s) to adjust.", len(overlapping_states))
+                logger.info("Found no semantic equivalent states.%s", '')
 
                 trajected_state = find_test_trajectory(to_be_tested_state, overlapping_states)
 
@@ -135,12 +142,22 @@ def find_semantic_equivalent_states(state_s, states_t):
     return [state_t for state_t in states_t if is_semantic_equivalent_state(state_s, state_t)]
 
 
+# TODO: Needs some refactoring since the z3 query depends on the call sequence. It assumes that both state are overlapping, which is not a good thing.
 def is_semantic_equivalent_state(state_x, state_y):
+
+    # compare state's effects.
+    if not set(state_x.effects) == set(state_y.effects):
+        return False
+
     s = Solver()
 
     # parse all conditions of state x.
     constraints_x = None
     for condition in state_x.conditions:
+
+        # ignore 'axiom' and 'requires' definitions.
+        if condition.typ != "Command":
+            continue
 
         constraint = to_z3_constraint(condition)
 
@@ -153,12 +170,20 @@ def is_semantic_equivalent_state(state_x, state_y):
     constraints_y = None
     for condition in state_y.conditions:
 
+        # ignore 'axiom' and 'requires' definitions.
+        if condition.typ != "Command":
+            continue
+
         constraint = to_z3_constraint(condition)
 
         if constraints_y is None:
             constraints_y = constraint
         else:
             constraints_y = And(constraint, constraints_y)
+
+    #
+    if constraints_x is None or constraints_y is None:
+        return True
 
     # create scope for assertions.
     s.push()

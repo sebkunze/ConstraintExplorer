@@ -16,7 +16,7 @@ def debug(msg, args = []): # TODO: Support multiple arguments!
     log.debug(msg, args)
 
 log = logging.getLogger('ConstraintSolver')
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 
 # create a file handler
 fLog = logging.FileHandler(filename)

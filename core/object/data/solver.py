@@ -38,10 +38,11 @@ class SymbolicState:
 
 class Condition:
 
-    def __init__(self, neg, com, cons):
+    def __init__(self, neg, com, cons, typ):
         self.neg  = neg
         self.com  = com
         self.cons = cons
+        self.typ  = typ
 
     def __str__(self):
         return "%s(neg: %s, com: %s, cons: %s)" % (
