@@ -1,7 +1,7 @@
 import os
 import yaml
 
-from core.utils            import logger
+from core.utils import logger
 
 
 conf_enable_references = False
@@ -20,7 +20,7 @@ def dump_analysis_output(output_directory, create):
     dump(path, create)
 
 
-def dump_comparison_output(output_directory, create, skip, adjust):
+def dump_comparison_output(output_directory, create, skip, extend, adjust):
 
     # create directory if non existing.
     if not os.path.exists(output_directory):
@@ -37,6 +37,12 @@ def dump_comparison_output(output_directory, create, skip, adjust):
 
     # save skipped states.
     dump(path, skip)
+
+    # specify path for extended states.
+    path = os.path.join(output_directory, "extend.yml")
+
+    # save extended states.
+    dump(path, extend)
 
     # specify path for adjusted states.
     path = os.path.join(output_directory, "adjust.yml")

@@ -67,16 +67,16 @@ def main():
         report.start_tracking_execution_time()
 
         # comparing programs' states.
-        create, skip, adjust = analyser.compare_program_states(programs[0], programs[1])
+        create, skip, extend, adjust = analyser.compare_program_states(programs[0], programs[1])
 
         # stopping execution time.
         report.stop_tracking_execution_time()
 
         # save number of states to report.
-        report.update_states(create, skip, adjust)
+        report.update_states(create, skip, extend, adjust)
 
         # exporting analysed programs' states.
-        dumper.dump_comparison_output(output_directory, create, skip, adjust)
+        dumper.dump_comparison_output(output_directory, create, skip, extend, adjust)
 
     # write report to specified file.
     report.dump(options.report)

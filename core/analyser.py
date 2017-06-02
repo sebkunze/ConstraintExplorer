@@ -1,7 +1,9 @@
+import re
+
 from z3 import Bool, Int, And, Or, Implies, Not, Solver, sat
 
-from core.object.data.test import TestInfo, TestInstance
-from core.utils            import logger
+from core.object.data.test   import TestInfo, TestInstance
+from core.utils              import logger
 
 
 def analyse_program_states(program):
@@ -21,8 +23,9 @@ def analyse_program_states(program):
 
 
 def compare_program_states(to_be_tested_program, already_tested_program):
-    create, skip, adjust = [], [], []
+    create, skip, extend, adjust = [], [], [], []
 
+    # iterate states to be tested.
     for to_be_tested_state in to_be_tested_program.states:
 
         logger.debug("Performing light-weight set-based analysis.%s", '')
@@ -34,17 +37,24 @@ def compare_program_states(to_be_tested_program, already_tested_program):
 
             logger.info("Found %s syntactic equivalent state(s).", len(syntactic_equivalent_states))
 
-            trajected_state = find_test_trajectory(to_be_tested_state, syntactic_equivalent_states)
+            instance, values, _ = create_test_instance(to_be_tested_state, syntactic_equivalent_states)
 
-            trajected_state_values = generate_satisfying_values([trajected_state])
-
-            instance = TestInstance(trajected_state, trajected_state_values)
-
-            to_be_tested_state_values = generate_satisfying_values([to_be_tested_state] + [trajected_state])
-
-            info = TestInfo("SYNTACTIC SKIP", to_be_tested_state, [instance], to_be_tested_state_values, [])
+            info = TestInfo("SYNTACTIC SKIP", to_be_tested_state, [instance], values, [])
 
             skip.append(info)
+
+            continue
+
+        syntactic_extending_states = find_syntactic_extending_states(to_be_tested_state, already_tested_program.states)
+
+        if syntactic_extending_states:
+            logger.info("Found %s syntactic extending state(s).", len(syntactic_extending_states))
+
+            instance, values, behavioural_difference = create_test_instance(to_be_tested_state, syntactic_extending_states)
+
+            info = TestInfo("SYNTACTIC EXTEND", to_be_tested_state, [instance], values, behavioural_difference)
+
+            extend.append(info)
 
             continue
 
@@ -53,11 +63,9 @@ def compare_program_states(to_be_tested_program, already_tested_program):
         # perform a expensive z3-based analysis
         overlapping_states = find_overlapping_states(to_be_tested_state, already_tested_program.states)
 
-        logger.debug("Found %s overlapping state(s)", len(overlapping_states))
+        logger.info("Found %s overlapping state(s)", len(overlapping_states))
 
         if overlapping_states:
-
-            logger.debug("Checking for semantic equivalent states.%s",'')
 
             semantic_equivalent_states = find_semantic_equivalent_states(to_be_tested_state, overlapping_states)
 
@@ -65,49 +73,50 @@ def compare_program_states(to_be_tested_program, already_tested_program):
 
                 logger.info("Found %s semantic equivalent state(s).", len(semantic_equivalent_states))
 
-                trajected_state = find_test_trajectory(to_be_tested_state, semantic_equivalent_states)
+                instance, values, behavioural_difference = create_test_instance(to_be_tested_state, semantic_equivalent_states)
 
-                trajected_state_values = generate_satisfying_values([trajected_state])
-
-                instance = TestInstance(trajected_state, trajected_state_values)
-
-                to_be_tested_state_values = generate_satisfying_values([to_be_tested_state] + [trajected_state])
-
-                differential_values = generate_differential_values(trajected_state_values, to_be_tested_state_values)
-
-                info = TestInfo("SEMANTIC SKIP", to_be_tested_state, [instance], to_be_tested_state_values, differential_values)
+                info = TestInfo("SEMANTIC SKIP", to_be_tested_state, [instance], values, behavioural_difference)
 
                 skip.append(info)
 
-            else:
+                continue
 
-                logger.info("Found no semantic equivalent states.%s", '')
+            logger.info("Found no semantic equivalent states.%s", '')
 
-                trajected_state = find_test_trajectory(to_be_tested_state, overlapping_states)
+            instance, values, behavioural_difference = create_test_instance(to_be_tested_state, overlapping_states)
 
-                trajected_state_values = generate_satisfying_values([trajected_state])
+            info = TestInfo("ADJUST", to_be_tested_state, [instance], values, behavioural_difference)
 
-                instance = TestInstance(trajected_state, trajected_state_values)
-
-                to_be_tested_state_values = generate_satisfying_values([to_be_tested_state] + [trajected_state])
-
-                differential_values = generate_differential_values(trajected_state_values, to_be_tested_state_values)
-
-                info = TestInfo("ADJUST", to_be_tested_state, [instance], to_be_tested_state_values, differential_values)
-
-                adjust.append(info)
+            adjust.append(info)
 
             continue
 
         logger.info("Found state to create.%s", '')
 
-        to_be_tested_state_values = generate_satisfying_values([to_be_tested_state])
+        values = generate_satisfying_values([to_be_tested_state])
 
-        info = TestInfo("CREATE", to_be_tested_state, [], to_be_tested_state_values, [])
+        info = TestInfo("CREATE", to_be_tested_state, [], values, [])
 
         create.append(info)
 
-    return create, skip, adjust
+    return create, skip, extend, adjust
+
+
+def create_test_instance(state_x, state_y):
+
+    values = \
+        generate_satisfying_values([state_x])
+
+    trajected_state = \
+        find_test_trajectory(state_x, state_y)
+
+    trajected_values = \
+        generate_satisfying_values([state_x] + [trajected_state])
+
+    differential_values = \
+        generate_differential_values(values, trajected_values)
+
+    return TestInstance(trajected_state, []), trajected_values, differential_values
 
 
 def find_test_trajectory(state_x, states_y):
@@ -132,52 +141,70 @@ def find_syntactic_equivalent_states(state_s, states_t):
 def is_syntactic_equivalent_state(state_s, state_t):
 
     # compare state s' conditions and effects to those of state t.
-    return set(state_s.conditions) == set(state_t.conditions) \
-            and set(state_s.effects) == set(state_t.effects)
+    return is_syntactic_equivalent_condition(state_s.conditions, state_t.conditions) \
+            and is_syntactic_equivalent_effect(state_s.effects, state_t.effects)
 
 
-def find_semantic_equivalent_states(state_s, states_t):
+def is_syntactic_equivalent_condition(conditions_x, conditions_y):
+
+    # perform set-based analysis.
+    return set(conditions_x) == set(conditions_y)
+
+
+def is_syntactic_equivalent_effect(effects_x, effects_y):
+
+    # perform set-based analysis.
+    return set(effects_x) == set(effects_y)
+
+
+def find_semantic_equivalent_states(state_x, states_y):
 
     # find source state s in list of target states t.
-    return [state_t for state_t in states_t if is_semantic_equivalent_state(state_s, state_t)]
+    return [state_y for state_y in states_y if is_semantic_equivalent_state(state_x, state_y)]
 
 
-# TODO: Needs some refactoring since the z3 query depends on the call sequence. It assumes that both state are overlapping, which is not a good thing.
 def is_semantic_equivalent_state(state_x, state_y):
 
-    # compare state's effects.
-    if not set(state_x.effects) == set(state_y.effects):
-        return False
+    # perform z3-based analysis.
+    return is_semantic_equivalent_condition(state_x.conditions, state_y.conditions) \
+           and is_semantic_equivalent_effect(state_x.effects, state_y.effects)
+
+
+def is_semantic_equivalent_condition(conditions_x, conditions_y):
 
     s = Solver()
 
     # parse all conditions of state x.
     constraints_x = None
-    for condition in state_x.conditions:
+    for condition_x in conditions_x:
 
         # ignore 'axiom' and 'requires' definitions.
-        if condition.typ != "Command":
+        # INFO: axioms and requires definition that are present in one state but not in the other will otherwise be flagged as non equivalent.
+        if condition_x.typ != "ASSUME":
             continue
 
-        constraint = to_z3_constraint(condition)
+        constraint = to_z3_constraint(condition_x)
 
         if constraints_x is None:
             constraints_x = constraint
+
         else:
             constraints_x = And(constraint, constraints_x)
 
     # parse all conditions of state y.
     constraints_y = None
-    for condition in state_y.conditions:
+    for condition_y in conditions_y:
 
         # ignore 'axiom' and 'requires' definitions.
-        if condition.typ != "Command":
+        # INFO: axioms and requires definition that are present in one state but not in the other will otherwise be flagged as non equivalent.
+        if condition_y.typ != "ASSUME":
             continue
 
-        constraint = to_z3_constraint(condition)
+        constraint = to_z3_constraint(condition_y)
 
         if constraints_y is None:
             constraints_y = constraint
+
         else:
             constraints_y = And(constraint, constraints_y)
 
@@ -210,13 +237,54 @@ def is_semantic_equivalent_state(state_x, state_y):
     return True
 
 
+def is_semantic_equivalent_effect(effect_x, effect_y):
+
+    # perform z3-based analysis.
+    # TODO: Replace effect check with z3-based analysis.
+    return is_syntactic_equivalent_effect(effect_x, effect_y)
+
+
+def find_syntactic_extending_states(state_x, states_y):
+
+    # find state x in list of states y.
+    for state_y in states_y:
+        if is_syntactic_extending_state(state_x, state_y):
+            return [state_y]
+
+    return []
+
+
+def is_syntactic_extending_state(state_x, state_y):
+
+    # TODO: Check if output is equivalent.
+
+
+    origins_x = [strip_original_keyword(c.origin) for c in state_x.conditions if c.typ == "ASSUME"]
+    origins_y = [strip_original_keyword(c.origin) for c in state_y.conditions if c.typ == "ASSUME"]
+
+    # check for extending conditions in state y not in state x.
+    if set(origins_x) < set(origins_y):
+        return True
+
+    # check for extending conditions in state x not in state y.
+    if set(origins_y) < set(origins_x):
+        return True
+
+    return False
+
+
+def strip_original_keyword(string):
+
+    return re.sub(r'_original[\d]*', '', string)
+
+
 def find_overlapping_states(state_s, states_t):
 
     # find source state s in list of target states t.
-    return [state_t for state_t in states_t if is_overlapping_state(state_s, state_t)]
+    return [state_t for state_t in states_t if is_overlapping_state_constraints(state_s, state_t)]
 
 
-def is_overlapping_state(state_x, state_y):
+def is_overlapping_state_constraints(state_x, state_y):
     s = Solver()
 
     # create scope for assertions.

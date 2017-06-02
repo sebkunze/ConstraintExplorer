@@ -71,15 +71,21 @@ def to_conditions(symbooglix_state):
     # iterate constraints of terminated state
     for symbooglix_constraint in SymbooglixConstraintIterator(symbooglix_state):
 
-        # retrieve information in 'origin
+        # retrieve information in 'origin'
         origin = symbooglix_constraint['origin']
 
+        # match type of expression.
         if origin.startswith("[Axiom]"):
-            typ = "Axiom"
+            typ = "AXIOM"
+
         elif origin.startswith("[Cmd]"):
-            typ = "Command"
+            typ = "ASSUME"
+
         elif origin.startswith("[Requires]"):
-            typ = "Requires"
+            typ = "REQUIRES"
+
+        else:
+            typ = "Unknown"
 
         # retrieve information in 'expr'.
         constraint = symbooglix_constraint['expr']
@@ -120,7 +126,7 @@ def to_conditions(symbooglix_state):
             nested_constraints.append(nested_constraint)
 
         # generate condition.
-        condition = Condition(has_negation_operator, has_logic_operator, nested_constraints, typ)
+        condition = Condition(origin, typ, has_negation_operator, has_logic_operator, nested_constraints)
 
         logger.info("> Generated condition: %s", condition)
 
@@ -320,18 +326,22 @@ def parse_integer_heap_access(left, op, right):
         value, variable = left.split(" + ", 1)
 
         # check if left-hand side of variable declaration is numerical.
-        if value.isdigit():
+        if value.isdigit() or value[1:].isdigit():
+
+            # perform arithmetic operations.
             left = variable
-            right = str(int(right) + int(value))
+            right = str(int(right) - int(value))
 
     # check for substituting prefix in variable declaration.
     elif " - intHeap" in left:
         value, variable = left.split(" - ", 1)
 
         # check if left-hand side of variable declaration is numerical.
-        if value.isdigit():
+        if value.isdigit() or value[1:].isdigit():
+
+            # perform arithmetic operations.
             left = variable
-            right = str(int(right) + int(value))
+            right = str((int(right) - int(value)) * (-1))
 
     return left, op, right
 
